@@ -1,0 +1,13 @@
+{
+  "name": "xion-pos-desktop",
+  "version": "1.0.0",
+  "description": "Dolarizado Offline-First POS",
+  "engines": {
+    "node": ">=20.10.0 <21.0.0",
+    "npm": ">=10.0.0"
+  },
+  "engineStrict": true,
+  "scripts": {
+    "preinstall": "node -e \"if(process.versions.node.split('.')[0] !== '20') { console.error('ERROR: Node.js v20 LTS is strictly required.'); process.exit(1); }\""
+  }
+}
