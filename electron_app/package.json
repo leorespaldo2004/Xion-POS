@@ -7,7 +7,9 @@
     "npm": ">=10.0.0"
   },
   "engineStrict": true,
+  "main": "dist/bootstrap.js",
   "scripts": {
-    "preinstall": "node -e \"if(process.versions.node.split('.')[0] !== '20') { console.error('ERROR: Node.js v20 LTS is strictly required.'); process.exit(1); }\""
+    "preinstall": "node -e \"if(process.versions.node.split('.')[0] !== '20') { console.error('ERROR: Node.js v20 LTS is strictly required.'); process.exit(1); }\"",
+    "start": "electron ."
   }
 }
