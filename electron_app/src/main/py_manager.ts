@@ -2,7 +2,9 @@
 
 import { app } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
+import log from 'electron-log';
 
 /**
  * ARCHITECT: DEV MASTER POS
@@ -10,69 +12,80 @@ import { spawn, ChildProcess } from 'child_process';
  * CONTEXT: Orchestrates the FastAPI subprocess. Ensures it dies when Electron dies.
  */
 
-class PythonBackendManager {
+export class PythonBackendManager {
     private backendProcess: ChildProcess | null = null;
     private readonly port: number = 8000;
 
-    /**
-     * Inicia el proceso de Python.
-     * Diferencia entre entorno de desarrollo (script) y producción (binario PyInstaller).
-     */
-    public startBackend(): void {
-        const isPackaged = app.isPackaged;
-        
-        let command = '';
-        let args: string[] = [];
-
-        if (isPackaged) {
-            // Producción: Llama al ejecutable compilado por PyInstaller
-            // Asegura que nadie pueda inyectar scripts no empaquetados.
-            command = path.join(process.resourcesPath, 'local_backend', 'pos_engine.exe'); 
+    private getEngineCommand(): { cmd: string; args: string[] } {
+        if (app.isPackaged) {
+            // MODO PRODUCCIÓN: Apuntamos al binario congelado (Offline-First)
+            const exePath = path.join(process.resourcesPath, 'backend', 'xion_backend.exe');
+            return { cmd: exePath, args: [] };
         } else {
-            // Desarrollo: Usa el entorno virtual de Python
-            command = path.join(__dirname, '../../..', 'local_backend', 'venv', 'Scripts', 'python.exe');
-            const scriptPath = path.join(__dirname, '../../..', 'local_backend', 'app', 'main.py');
-            args = [scriptPath];
-        }
+            // MODO DESARROLLO: Apuntamos dinámicamente al .venv dentro de "Xion POS"
+            // Asumiendo que __dirname es electron_app/dist/main
+            const projectRoot = path.resolve(__dirname, '..', '..', '..');
+            const pythonPath = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
+            const mainPyPath = path.join(projectRoot, 'local_backend', 'app', 'main.py');
 
-        console.log(`[PyManager] Starting Local Engine: ${command} ${args.join(' ')}`);
+            if (!fs.existsSync(pythonPath)) {
+                log.error(`[CRÍTICO] Motor Python no encontrado en: ${pythonPath}`);
+                throw new Error(`Virtual Environment no detectado. Revisa la ruta: ${pythonPath}`);
+            }
+
+            if (!fs.existsSync(mainPyPath)) {
+                log.error(`[CRÍTICO] Archivo main.py no encontrado en: ${mainPyPath}`);
+                throw new Error(`Archivo main.py no encontrado. Revisa la ruta: ${mainPyPath}`);
+            }
+
+            return { cmd: pythonPath, args: [mainPyPath] };
+        }
+    }
+
+    public startBackend(): void {
+        let cmd: string;
+        let args: string[];
 
         try {
-            this.backendProcess = spawn(command, args, {
-                cwd: isPackaged ? process.resourcesPath : path.join(__dirname, '../../..', 'local_backend'),
-                detached: false // El hijo DEBE morir si el padre muere
-            });
+            const engine = this.getEngineCommand();
+            cmd = engine.cmd;
+            args = engine.args;
+        } catch (err) {
+            log.error('[PyManager] startBackend aborted:', err);
+            // No queremos que un ENOENT rompa todo el proceso de Electron en desarrollo.
+            return;
+        }
+
+        log.info(`[PyManager] Starting Local Engine: ${cmd} ${args.join(' ')}`);
+
+        try {
+            this.backendProcess = spawn(cmd, args, { stdio: 'pipe' });
 
             this.backendProcess.stdout?.on('data', (data: Buffer) => {
-                console.log(`[FastAPI stdout]: ${data.toString().trim()}`);
+                log.info(`[FastAPI stdout]: ${data.toString().trim()}`);
             });
 
             this.backendProcess.stderr?.on('data', (data: Buffer) => {
-                console.error(`[FastAPI stderr]: ${data.toString().trim()}`);
+                log.error(`[FastAPI stderr]: ${data.toString().trim()}`);
             });
 
-            this.backendProcess.on('close', (code: number | null) => {
-                console.warn(`[PyManager] Backend process exited with code ${code}`);
+            this.backendProcess.on('exit', (code: number | null) => {
+                log.warn(`[PyManager] Backend process exited with code ${code}`);
                 this.backendProcess = null;
             });
 
         } catch (error) {
-            console.error(`[PyManager] Critical Error starting backend:`, error);
-            // Si el backend no levanta, la caja no opera. Lockdown.
-            app.quit();
+            log.error(`[PyManager] Critical Error starting backend: ${error}`);
         }
     }
 
-    /**
-     * Garantiza la terminación limpia de las transacciones locales antes de cerrar.
-     */
     public killBackend(): void {
         if (this.backendProcess) {
-            console.log('[PyManager] Terminating Local Backend Gracefully...');
+            log.info('[PyManager] Terminating Local Backend Gracefully...');
             try {
                 this.backendProcess.kill('SIGTERM' as any);
             } catch (e) {
-                console.warn('[PyManager] Error sending SIGTERM, forcing kill.', e);
+                log.warn('[PyManager] Error sending SIGTERM, forcing kill.', e);
                 try {
                     this.backendProcess.kill();
                 } catch (_) {

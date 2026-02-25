@@ -1,0 +1,44 @@
+name: Build and Release POS
+
+on:
+  push:
+    tags:
+      - 'v*' # Se dispara al crear un tag como v1.0.0
+
+jobs:
+  release:
+    runs-on: windows-latest # Asumiendo target Windows para cajas de POS
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Python Backend
+        run: |
+          cd local_backend
+          pip install -r requirements.txt
+          pyinstaller --name xion_backend --onefile main.py
+        # El ejecutable quedará en local_backend/dist/xion_backend.exe
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install JS Dependencies
+        run: |
+          cd electron_app
+          npm ci
+
+      - name: Build and Publish Electron App
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd electron_app
+          npm run build
+          # electron-builder compilará y subirá los artefactos a los GitHub Releases
+          npx electron-builder --publish always

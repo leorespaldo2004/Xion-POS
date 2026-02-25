@@ -1,15 +1,39 @@
 {
   "name": "xion-pos-desktop",
-  "version": "1.0.0",
-  "description": "Dolarizado Offline-First POS",
-  "engines": {
-    "node": ">=20.10.0 <21.0.0",
-    "npm": ">=10.0.0"
-  },
-  "engineStrict": true,
+  "version": "0.1.0",
+  "author": "XionPOS DevMaster <admin@xionpos.com>",
+  "description": "Dolarizado Offline-First POS System",
   "main": "dist/bootstrap.js",
   "scripts": {
     "preinstall": "node -e \"if(process.versions.node.split('.')[0] !== '20') { console.error('ERROR: Node.js v20 LTS is strictly required.'); process.exit(1); }\"",
-    "start": "electron ."
+    "start:desktop": "electron dist/bootstrap.js",
+    "start": "electron .",
+    "build:ts": "tsc",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish always"
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.0.0",
+    "vitest": "^1.4.0"
+  },
+  "build": {
+    "appId": "com.xionpos.desktop",
+    "productName": "Xion POS",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TuUsuario",
+        "repo": "xion-pos"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../local_backend/dist",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ]
   }
 }

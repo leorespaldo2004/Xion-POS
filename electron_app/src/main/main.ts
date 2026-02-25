@@ -2,8 +2,9 @@ import { app, BrowserWindow } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pyManager } from './py_manager';
+import { AppUpdater } from './updater';
 
-function createWindow() {
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -26,13 +27,26 @@ function createWindow() {
     // En desarrollo, si no existe `out/index.html`, cargar el servidor de Next.js
     win.loadURL('http://localhost:3000').catch((e) => console.error('Failed to load URL:', e));
   }
+
+  return win;
 }
 
 app.whenReady().then(() => {
   // Levantamos el backend local (dev o binario según `app.isPackaged`)
   pyManager.startBackend();
 
-  createWindow();
+  const mainWindow = createWindow();
+
+  // Instanciamos el actualizador inyectando la ventana para comunicación IPC
+  try {
+    const updater = new AppUpdater(mainWindow);
+    // Retrasamos la búsqueda de actualizaciones 10 segundos para no penalizar el arranque
+    setTimeout(() => {
+      updater.checkForUpdates();
+    }, 10000);
+  } catch (err) {
+    console.warn('Updater initialization failed, continuing without OTA:', err);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
