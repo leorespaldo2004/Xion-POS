@@ -34,11 +34,27 @@ jobs:
           cd electron_app
           npm ci
 
+      - name: Prepare code signing certificates
+        # This step writes the Windows PFX from a secret so electron-builder can pick it up
+        run: |
+          cd electron_app
+          # `WINDOWS_CERTIFICATE` should be the base64-encoded .p12/.pfx file stored in GitHub Secrets
+          if [ -n "${{ secrets.WINDOWS_CERTIFICATE }}" ]; then
+            echo "$WINDOWS_CERTIFICATE" | base64 --decode > windows-certificate.p12
+          fi
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+
       - name: Build and Publish Electron App
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ github.workspace }}/electron_app/windows-certificate.p12
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          # CSC_NAME can be provided if needed for dual-signing
+          # MAC_CERT: ${{ secrets.MAC_CERTIFICATE }}
+          # MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
         run: |
           cd electron_app
           npm run build
-          # electron-builder compilará y subirá los artefactos a los GitHub Releases
+          # electron-builder compilará, firmará y subirá los artefactos a los GitHub Releases
           npx electron-builder --publish always

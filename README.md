@@ -7,6 +7,9 @@ python -m venv .venv
 ; pip install --upgrade pip
 ; pip install -r requirements.txt
 
+npm run compile:app
+
+
 cd electron_app
 npm ci
 # Ejecutar tests (si tienes vitest instalado en devDeps)

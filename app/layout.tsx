@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { AutoUpdaterToast } from '@/components/pos/auto-updater-toast';
 
 const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
@@ -38,6 +39,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${_inter.variable} ${_jetbrains.variable} font-sans antialiased`}>
         {children}
+        {/* listener integrado para notificaciones de actualizador en Electron */}
+        <AutoUpdaterToast />
         <Analytics />
       </body>
     </html>

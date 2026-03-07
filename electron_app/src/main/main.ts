@@ -10,7 +10,9 @@ function createWindow(): BrowserWindow {
     height: 800,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // preload script will expose a safe API instead of giving renderers direct access
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
