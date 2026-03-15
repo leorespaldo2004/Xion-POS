@@ -1,0 +1,83 @@
+"use client"
+
+import { useState } from "react"
+import { DashboardSidebar } from "./dashboard-sidebar"
+import { DashboardHeader } from "./dashboard-header"
+import { DashboardContent } from "./dashboard-content"
+import { ArqueoModal } from "./arqueo-modal"
+import { SalesModule } from "./sales-module"
+import { InventoryModule } from "./inventory-module"
+import { UsersModule } from "./users-module"
+import { PurchasesModule } from "./purchases-module"
+import { ClientsModule } from "./clients-module"
+import { SuppliersModule } from "./suppliers-module"
+import { HelpModule } from "./help-module"
+import { PreferencesModule } from "./preferences-module"
+import { SettingsModule } from "./settings-module"
+import { ReportsModule } from "./reports-module"
+
+interface DashboardScreenProps {
+  onLogout: () => void
+}
+
+export function DashboardScreen({ onLogout }: DashboardScreenProps) {
+  const [activeNav, setActiveNav] = useState("Dashboard")
+  const [showArqueo, setShowArqueo] = useState(false)
+
+  const renderContent = () => {
+    switch (activeNav) {
+      case "Ventas":
+        return <SalesModule />
+      case "Compras":
+        return <PurchasesModule />
+      case "Inventario":
+        return <InventoryModule />
+      case "Usuarios":
+        return <UsersModule />
+      case "Clientes":
+        return <ClientsModule />
+      case "Proveedores":
+        return <SuppliersModule />
+      case "Reportes":
+        return <ReportsModule />
+      case "Configuraciones":
+        return <SettingsModule />
+      case "Preferencias":
+        return <PreferencesModule />
+      case "Ayuda":
+        return <HelpModule />
+      case "Dashboard":
+      default:
+        return <DashboardContent onCloseCaja={() => setShowArqueo(true)} />
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-background">
+      {/* Sidebar */}
+      <DashboardSidebar activeItem={activeNav} onItemClick={setActiveNav} />
+
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <DashboardHeader
+          title={activeNav === "Dashboard" ? "Caja Principal" : activeNav}
+          exchangeRate={37.0}
+          onLogout={onLogout}
+        />
+
+        {/* Dynamic Content */}
+        {renderContent()}
+      </div>
+
+      {/* Modals */}
+      <ArqueoModal
+        open={showArqueo}
+        onClose={() => setShowArqueo(false)}
+        onConfirm={() => {
+          setShowArqueo(false)
+        }}
+      />
+    </div>
+  )
+}

@@ -1,0 +1,61 @@
+name: Build and Release POS
+
+on:
+  push:
+    tags:
+      - 'v*' # Se dispara al crear un tag como v1.0.0
+
+jobs:
+  release:
+    runs-on: windows-latest # Asumiendo target Windows para cajas de POS
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python Dependencies
+        working-directory: ./local_backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Freeze Python Backend (PyInstaller)
+        working-directory: ./local_backend
+        # Congelamos a un solo archivo. Sin consola para no abrir ventanas negras al usuario.
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name xion_backend main.py
+
+      - name: Move Binary to Electron Extra Resources
+        run: |
+          mkdir -p electron_app/resources
+          mv local_backend/dist/xion_backend.exe electron_app/resources/
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Node Dependencies
+        working-directory: ./electron_app
+        run: npm ci
+
+      - name: Build Vite Frontend
+        working-directory: ./electron_app
+        run: npm run build
+
+      - name: Build and Publish Electron App
+        working-directory: ./electron_app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Obligatorio para electron-updater
+        # Construye la app y la sube a GitHub Releases automáticamente
+        run: npx electron-builder --win --publish always

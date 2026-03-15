@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+# extras for testing
+pytest
+requests
+pytest-cov
+coverage
+pydantic 
+pydantic-core

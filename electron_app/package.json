@@ -1,0 +1,70 @@
+{
+  "name": "xion-pos-desktop",
+  "version": "0.1.0",
+  "author": "XionPOS DevMaster <admin@xionpos.com>",
+  "description": "Dolarizado Offline-First POS System",
+  "main": "dist/bootstrap.js",
+  "scripts": {
+    "preinstall": "node -e \"const major = parseInt(process.versions.node.split('.')[0],10); if(major < 20) { console.error('ERROR: Node.js v20+ LTS is strictly required. Current:', process.versions.node); process.exit(1); }\"",
+    "postinstall": "electron-builder install-app-deps",
+    "start:desktop": "electron dist/bootstrap.js",
+    "start": "electron .",
+    "clean": "rimraf dist win-unpacked",
+    "build:ts": "tsc -p tsconfig.json",
+    "build:secure": "electron scripts/compile_main.js",
+    "pack": "npm run clean && cd .. && npm run build && cd electron_app && npm run build:secure && electron-builder --dir",
+    "dist": "npm run clean && cd .. && npm run build && cd electron_app && npm run build:secure && electron-builder --publish always"
+  },
+  "devDependencies": {
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.4.0"
+  },
+  "dependencies": {
+    "bytenode": "^1.4.0",
+    "electron-updater": "^6.8.3"
+  },
+  "build": {
+    "appId": "com.xionpos.desktop",
+    "productName": "Xion POS",
+    "files": [
+      "package.json",
+      "dist/bootstrap.js",
+      "dist/main.jsc",
+      "dist/preload.js",
+      "dist/out/**/*",
+      "node_modules/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TuUsuario",
+        "repo": "xion-pos"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../local_backend/dist",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "dist/out",
+        "to": "out",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    }
+  }
+}
