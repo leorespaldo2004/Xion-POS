@@ -13,50 +13,43 @@ A continuación tienes el flujo completo para compilar, empaquetar y generar un 
 
 > 🛠 **Modo desarrollador (rápido)**
 >
-> Durante el desarrollo conviene tener dos terminales separados:
+> El ciclo de vida actual del modo dev es:
+> 1) Levantar Vite (`npm run dev`)
+> 2) Arrancar Electron (`npm run dev:electron`) (abre `http://localhost:5173`)
+> 3) Electron arranca backend Python y hace health-check `/health`
 >
-> 1. **Servidor de UI**: ejecuta el siguiente comando en la raíz del repositorio
->    (ya existe como `npm run dev`, también alias `npm run dev:vite`):
+> Durante el arranque, Electron usa retry para cargar la URL de Vite y
+> el backend usa lifespan para iniciar/cerrar DB con seguridad.
 >
->    ```bash
->    npm run dev          # o npm run dev:vite
->    ```
+> Antes de ejecutar de nuevo, mata procesos zombie (Node/Electron/Python) si
+> queda algo en el puerto.
 >
->    Esto lanza Vite en modo de desarrollo. Por defecto Vite sirve en
-    `http://localhost:5173` (no 3000), y el proceso de Electron está
-    configurado para conectar con ese puerto.
-
-    Para desarrollo completo:
-    ```bash
-    npm run dev:vite
-    npm run dev:electron
-    ```
-
-    Si cambias el puerto en `vite.config.ts`, exporta `VITE_DEV_SERVER_URL`
-    antes de ejecutar `npm run dev:electron`.
+> ```powershell
+> taskkill /F /IM electron.exe /T
+> taskkill /F /IM node.exe /T
+> taskkill /F /IM xion_backend.exe /T
+> netstat -ano | findstr 5173
+> taskkill /PID <pid> /F
+> ```
 >
-> 2. **Proceso Electron**: en otra consola ejecuta el proceso de escritorio,
->    que consumirá la URL anterior. Hay un script nuevo para ello:
+> Usa siempre dos terminales:
+> - Terminal 1: `npm run dev` (Vite)
+> - Terminal 2: `npm run dev:electron` (Electron+Python)
 >
->    ```bash
->    npm run dev:electron
->    ```
+> Si cambias el puerto Vite en `vite.config.ts`, define:
+> `export VITE_DEV_SERVER_URL=http://127.0.0.1:<port>` antes de `npm run dev:electron`.
 >
->    Este comando hace `cd electron_app && npm run start`, cargando
->    directamente desde el código fuente sin empaquetar. Si necesitas que el
->    main se recompile al vuelo puedes también ejecutar `npm run build:ts -w`
->    dentro de `electron_app` o usar un watcher.
->
->  
-> Con ambos servicios levantados, abre la aplicación y usa DevTools para
-> diagnosticar cualquier error (ver sección de depuración más abajo).
->
-
-## 1. Preparar entorno Python
+> En la app, si ves pantalla blanca, abre DevTools (Ctrl+Shift+I) y copia la
+> primera excepción.
 
 ```powershell
 py -3.12 -m venv .venv
 . .venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Este paso configura el backend local que se invoca desde Electron en modo desarrollo.
 pip install --upgrade pip
 pip install -r requirements.txt
 ```

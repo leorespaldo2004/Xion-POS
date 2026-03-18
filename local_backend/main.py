@@ -8,10 +8,26 @@ from sqlmodel import Session, select
 from local_backend.core.database import init_db, get_session
 from local_backend.api.routers import system
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        init_db()
+        print("[PYTHON] Database initialized and verified.")
+    except Exception as e:
+        print(f"[CRITICAL] Database initialization failed: {e}")
+        raise
+    yield
+    print("[PYTHON] Shutting down local backend lifecycle...")
+
+
 app = FastAPI(
     title="Xion POS Local Backend",
     version="1.0.0",
-    description="Offline-First Local API for POS System"
+    description="Offline-First Local API for POS System",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -21,10 +37,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 app.include_router(system.router, prefix="/api/v1")
 
