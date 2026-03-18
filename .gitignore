@@ -9,6 +9,7 @@ electron_app/node_modules/
 electron_app/dist/
 .env*.local
 .DS_Store
+.env
 
 # Python
 .venv/
@@ -41,6 +42,7 @@ tsconfig.tsbuildinfo
 node_modules/
 # Electron
 electron-builder-effective-config.yaml
+electon_app/.env
 
 # IDE
 .vscode/

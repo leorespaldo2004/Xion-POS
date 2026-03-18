@@ -16,7 +16,7 @@ export class PythonBackendManager {
     this.port = port;
   }
 
-  private getEngineCommand(): { cmd: string; args: string[] } {
+  private getEngineCommand(): { cmd: string; args: string[]; cwd?: string } {
     const isDev = !app.isPackaged;
     if (!isDev) {
       const exePath = path.join(process.resourcesPath, 'backend', 'xion_backend.exe');
@@ -49,19 +49,7 @@ export class PythonBackendManager {
     }
 
     const projectRoot = path.resolve(pythonPath, '..', '..', '..');
-    const mainPyCandidates = [
-      path.join(projectRoot, 'local_backend', 'main.py'),
-      path.join(projectRoot, 'local_backend', 'app', 'main.py'),
-    ];
-
-    const mainPyPath = mainPyCandidates.find((candidate) => fs.existsSync(candidate));
-    if (!mainPyPath) {
-      const msg = `main.py not found. Checked: ${mainPyCandidates.join(', ')}`;
-      log.error(`[PyManager] ${msg}`);
-      throw new Error(msg);
-    }
-
-    return { cmd: pythonPath, args: [mainPyPath] };
+    return { cmd: pythonPath, args: ['-m', 'local_backend.main'], cwd: projectRoot };
   }
 
   public async start(): Promise<string> {
@@ -69,10 +57,11 @@ export class PythonBackendManager {
       return `http://${this.host}:${this.port}`;
     }
 
-    const { cmd, args } = this.getEngineCommand();
-    log.info(`[PyManager] Starting backend: ${cmd} ${args.join(' ')}`);
+    const command = this.getEngineCommand();
+    log.info(`[PyManager] Starting backend: ${command.cmd} ${command.args.join(' ')}`);
 
-    this.backendProcess = spawn(cmd, args, {
+    this.backendProcess = spawn(command.cmd, command.args, {
+      cwd: command.cwd || process.cwd(),
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
     });

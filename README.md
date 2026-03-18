@@ -116,6 +116,30 @@ npm run dist           # empaqueta y, si GH_TOKEN está presente, publica
 npx electron-builder --publish always
 ```
 
+## Crear un tag para disparar el release (GitHub Actions)
+
+El workflow de release se dispara cuando empujas un tag que comience con `v`.
+Por ejemplo:
+
+```powershell
+# desde la rama principal
+git checkout main
+git pull
+
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+También puedes crear el tag y empujarlo en un solo paso:
+
+```powershell
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin --tags
+```
+
+> Asegúrate de usar el prefijo `v` (ej. `v1.2.3`) para que coincida con
+> `on: push: tags: - 'v*'` en `.github/workflows/release.yml`.
+
 > ⚠️ **Nota adicional (AV y rcedit):** si el proceso falla con
 > `Fatal error: Unable to commit changes` durante la fase de icono/metadata,
 > sigue la sección **Bloqueos de Windows/"zombies"** abajo: el Antivirus suele
@@ -204,7 +228,7 @@ argumento `--publish` y sube el archivo manualmente.
 
 * No uses `--force` ni `--legacy-peer-deps` en `npm install`.
 * El esquema de auto‑update utiliza [electron-updater](https://github.com/electron-userland/electron-builder/wiki/Auto-Update) y requiere que la release sea accesible (public).
-* Para desarrollo rápido puedes iniciar solo la UI con `npm run dev` (alias `npm run dev:vite`),
+* Para desarrollo rápido puedes iniciar solo la UI con `npm run dev` (alias ``),
   arrancar el backend Python local y, en otra terminal, lanzar el escritorio con
   `npm run dev:electron`.
 

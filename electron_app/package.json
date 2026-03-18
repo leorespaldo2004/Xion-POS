@@ -40,8 +40,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "TuUsuario",
-        "repo": "xion-pos"
+        "owner": "leorespaldo2004",
+        "repo": "Xion-POS"
       }
     ],
     "extraResources": [
