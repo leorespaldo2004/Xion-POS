@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
 from local_backend.core.database import init_db, get_session
+from local_backend.api.routers import system
 
 app = FastAPI(
     title="Xion POS Local Backend",
@@ -24,6 +25,8 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+
+app.include_router(system.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

@@ -12,6 +12,7 @@ import {
   Smartphone,
   ArrowRightLeft,
 } from "lucide-react"
+import { ConnectionTester } from "@/components/pos/connection-tester"
 
 interface DashboardContentProps {
   onCloseCaja: () => void
@@ -146,6 +147,10 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-3">
+          <ConnectionTester />
+        </div>
       </div>
     </div>
   )

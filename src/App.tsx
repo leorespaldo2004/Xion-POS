@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/globals.css';
-import { AutoUpdaterToast } from '@/components/pos/auto-updater-toast';
-import { LoginScreen } from '@/components/pos/login-screen';
-import { OnboardingScreen } from '@/components/pos/onboarding-screen';
-import { DashboardScreen } from '@/components/pos/dashboard-screen';
+import { ConnectionTester } from '@/components/pos/connection-tester';
 import { apiClient } from '@/lib/api';
-
-type AppView = 'login' | 'onboarding' | 'dashboard';
 
 type BootState = 'checking' | 'ready' | 'failed';
 
 export default function App() {
-  const [view, setView] = useState<AppView>('login');
   const [bootState, setBootState] = useState<BootState>('checking');
   const [error, setError] = useState<string>('');
 
@@ -54,7 +48,6 @@ export default function App() {
         <div className="bg-slate-900 rounded-xl border border-red-500 p-6 max-w-lg">
           <h1 className="text-xl font-bold text-red-300">Backend no disponible</h1>
           <p className="mt-2 text-slate-200">{error}</p>
-          <p className="mt-2 text-slate-400">Asegúrate que el backend Python ha iniciado correctamente y vuelve a cargar la app.</p>
           <button
             className="mt-4 rounded-md px-4 py-2 bg-sky-500 text-slate-900 font-semibold"
             onClick={() => window.location.reload()}
@@ -66,22 +59,12 @@ export default function App() {
     );
   }
 
-  const renderContent = () => {
-    if (view === 'login') {
-      return <LoginScreen onLogin={() => setView('onboarding')} />;
-    }
-
-    if (view === 'onboarding') {
-      return <OnboardingScreen onSelectPrimary={() => setView('dashboard')} onRequestAccess={() => setView('dashboard')} />;
-    }
-
-    return <DashboardScreen onLogout={() => setView('login')} />;
-  };
-
   return (
-    <div className="font-sans antialiased">
-      {renderContent()}
-      <AutoUpdaterToast />
+    <div className="min-h-screen bg-slate-50 p-4 text-slate-900">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="text-3xl font-bold mb-4">Xion POS - Escritorio</h1>
+        <ConnectionTester />
+      </div>
     </div>
   );
 }
