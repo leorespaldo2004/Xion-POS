@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
 from local_backend.core.database import init_db, get_session
-from local_backend.api.routers import system
+from local_backend.api.routers import system, inventory
 
 from contextlib import asynccontextmanager
 
@@ -39,6 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(system.router, prefix="/api/v1")
+app.include_router(inventory.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

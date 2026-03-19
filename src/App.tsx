@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/globals.css';
-import { ConnectionTester } from '@/components/pos/connection-tester';
+import { DashboardScreen } from '@/components/pos/dashboard-screen';
+// import { LoginScreen } from '@/components/pos/login-screen'; // Descomentar cuando actives el login
 import { apiClient } from '@/lib/api';
 
 type BootState = 'checking' | 'ready' | 'failed';
@@ -8,6 +9,9 @@ type BootState = 'checking' | 'ready' | 'failed';
 export default function App() {
   const [bootState, setBootState] = useState<BootState>('checking');
   const [error, setError] = useState<string>('');
+  
+  // Omitimos la seguridad temporalmente fijando esto en "true"
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,12 +63,21 @@ export default function App() {
     );
   }
 
+  /* * Flujo de Autenticación (Desactivado para desarrollo)
+   * Cuando quieras volver a activar el login, simplemente cambia 
+   * el estado inicial de isAuthenticated a 'false' y descomenta este bloque.
+   */
+  // if (!isAuthenticated) {
+  //   return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+  // }
+
   return (
-    <div className="min-h-screen bg-slate-50 p-4 text-slate-900">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-4">Xion POS - Escritorio</h1>
-        <ConnectionTester />
-      </div>
-    </div>
+    <DashboardScreen 
+      onLogout={() => {
+        // En modo desarrollo puedes dejar esto vacío o que simplemente cambie el estado
+        console.log("Cerrando sesión...");
+        setIsAuthenticated(false); 
+      }} 
+    />
   );
 }
