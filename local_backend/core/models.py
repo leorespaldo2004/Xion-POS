@@ -36,6 +36,11 @@ class Product(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class ProductComposition(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    parent_id: str = Field(nullable=False, foreign_key="product.id")
+    child_id: str = Field(nullable=False, foreign_key="product.id")
+    quantity_required: float = Field(default=1.0, nullable=False)
 
 class SystemConfig(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
