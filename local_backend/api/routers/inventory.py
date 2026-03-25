@@ -13,15 +13,18 @@ class ComboItemCreate(SQLModel):
     quantity: float = Field(gt=0)
 
 class ProductCreate(SQLModel):
-    barcode: str
+    sku: str
     name: str
+    barcode: Optional[str] = None
+    description: Optional[str] = None
     category_id: Optional[str] = None
     price_usd: float = Field(gt=0)
     cost_usd: float = Field(ge=0)
-    current_stock: float = 0
-    min_stock: float = 0
-    type: str  # physical, combo, service
-    has_vat: bool = False
+    product_type: str = "physical"
+    tax_type: str = "none"
+    unit_measure: str = "UND"
+    min_stock_alert: float = 0.0
+    tags: Optional[str] = None
     combo_items: List[ComboItemCreate] = []
 
 class ProductNotFoundError(HTTPException):
@@ -41,38 +44,51 @@ def create_product(payload: ProductCreate, session: Session = Depends(get_sessio
     """
     Crea un producto. Si es combo, verifica atómicamente sus dependencias.
     """
-    if payload.type == "combo" and not payload.combo_items:
+    if payload.product_type == "virtual" and not payload.combo_items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Combos require at least one child product"
         )
 
-    # Verifica duplicados de barcode
-    existing = session.exec(select(Product).where(Product.barcode == payload.barcode)).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Barcode already exists")
+    # Verifica duplicados de SKU y barcode
+    existing_sku = session.exec(select(Product).where(Product.sku == payload.sku)).first()
+    if existing_sku:
+        raise HTTPException(status_code=409, detail="SKU already exists")
+    
+    if payload.barcode:
+        existing_bc = session.exec(select(Product).where(Product.barcode == payload.barcode)).first()
+        if existing_bc:
+            raise HTTPException(status_code=409, detail="Barcode already exists")
 
     product_type_map = {
         "physical": ProductType.PHYSICAL,
-        "combo": ProductType.VIRTUAL,
+        "virtual": ProductType.VIRTUAL,
         "service": ProductType.SERVICE
     }
-    ptype = product_type_map.get(payload.type, ProductType.PHYSICAL)
+    ptype = product_type_map.get(payload.product_type, ProductType.PHYSICAL)
 
-    tax_type = TaxType.VAT if payload.has_vat else TaxType.NONE
+    tax_type_map = {
+        "none": TaxType.NONE,
+        "vat": TaxType.VAT,
+        "islr": TaxType.ISLR
+    }
+    ttype = tax_type_map.get(payload.tax_type, TaxType.NONE)
 
     new_product = Product(
         id=str(uuid4()),
-        sku=payload.barcode,
+        sku=payload.sku,
         barcode=payload.barcode,
         name=payload.name,
+        description=payload.description,
         category_id=payload.category_id,
         price_usd=payload.price_usd,
         cost_usd=payload.cost_usd,
         product_type=ptype,
-        tax_type=tax_type,
-        cached_stock_quantity=payload.current_stock,
-        min_stock_alert=payload.min_stock,
+        tax_type=ttype,
+        unit_measure=payload.unit_measure,
+        cached_stock_quantity=0.0,
+        min_stock_alert=payload.min_stock_alert,
+        tags=payload.tags,
         is_synced=False,
         is_deleted=False,
     )
@@ -80,7 +96,7 @@ def create_product(payload: ProductCreate, session: Session = Depends(get_sessio
     session.add(new_product)
 
     # Lógica atómica para Combos
-    if payload.type == "combo":
+    if payload.product_type == "virtual":
         for item in payload.combo_items:
             # Validar que el hijo exista
             child = session.get(Product, item.product_id)

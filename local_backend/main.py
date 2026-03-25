@@ -4,9 +4,12 @@ import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
-
 from local_backend.core.database import init_db, get_session
-from local_backend.api.routers import system, inventory
+from local_backend.api.routers.system import router as system_router
+from local_backend.api.routers.inventory import router as inventory_router
+from local_backend.api.routers.clients import router as clients_router
+from local_backend.api.routers.users import router as users_router
+from local_backend.api.routers.suppliers import router as suppliers_router
 
 from contextlib import asynccontextmanager
 
@@ -32,14 +35,17 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "app://.", "http://localhost:8000"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "app://.", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(system.router, prefix="/api/v1")
-app.include_router(inventory.router, prefix="/api/v1")
+app.include_router(system_router, prefix="/api/v1")
+app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(clients_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(suppliers_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

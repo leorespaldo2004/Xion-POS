@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { z } from "zod"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -17,7 +19,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -30,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import {
   Search,
   UserPlus,
@@ -38,156 +40,136 @@ import {
   UserCircle,
   Mail,
   Phone,
-  MapPin,
-  CreditCard,
   Upload,
   Download,
+  DollarSign,
+  Users
 } from "lucide-react"
 
-interface Client {
-  id: string
-  name: string
-  email: string
-  phone: string
-  address: string
-  identificationType: "CI" | "RIF" | "Pasaporte"
-  identificationNumber: string
-  creditLimit: number
-  currentDebt: number
-  isActive: boolean
-}
+import {
+  useClients,
+  useCreateClient,
+  useUpdateClient,
+  useDeleteClient,
+  Client,
+} from "@/hooks/queries/use-clients"
+import { toast } from "sonner"
 
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "María González",
-    email: "maria.gonzalez@email.com",
-    phone: "+58 424-1234567",
-    address: "Av. Principal, Caracas",
-    identificationType: "CI",
-    identificationNumber: "V-12345678",
-    creditLimit: 500,
-    currentDebt: 120,
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Carlos Rodríguez",
-    email: "carlos.rodriguez@empresa.com",
-    phone: "+58 412-9876543",
-    address: "Calle Comercio, Valencia",
-    identificationType: "RIF",
-    identificationNumber: "J-87654321-0",
-    creditLimit: 1000,
-    currentDebt: 450,
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Ana Pérez",
-    email: "ana.perez@email.com",
-    phone: "+58 426-5551234",
-    address: "Urb. Los Robles, Maracay",
-    identificationType: "CI",
-    identificationNumber: "V-23456789",
-    creditLimit: 300,
-    currentDebt: 0,
-    isActive: false,
-  },
-]
+const clientSchema = z.object({
+  name: z.string().min(2, "El nombre es obligatorio"),
+  email: z.string().email("Correo electrónico inválido"),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  identification_type: z.enum(["CI", "RIF", "Pasaporte"]),
+  identification_number: z.string().min(5, "Número de identificación requerido"),
+  credit_limit: z.coerce.number().min(0, "No puede ser negativo"),
+  current_debt: z.coerce.number().min(0, "No puede ser negativo"),
+  is_active: z.boolean().default(true),
+})
+
+type ClientFormValues = z.infer<typeof clientSchema>
 
 export function ClientsModule() {
-  const [clients, setClients] = useState<Client[]>(mockClients)
   const [searchTerm, setSearchTerm] = useState("")
   const [showDialog, setShowDialog] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [formData, setFormData] = useState<Partial<Client>>({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    identificationType: "CI",
-    identificationNumber: "",
-    creditLimit: 0,
-    currentDebt: 0,
-    isActive: true,
+
+  const { data: clients = [] } = useClients()
+  const createMutation = useCreateClient()
+  const updateMutation = useUpdateClient()
+  const deleteMutation = useDeleteClient()
+
+  const form = useForm<ClientFormValues>({
+    resolver: zodResolver(clientSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      identification_type: "CI",
+      identification_number: "",
+      credit_limit: 100,
+      current_debt: 0,
+      is_active: true,
+    }
   })
 
   const filteredClients = clients.filter(
     (client) =>
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.identificationNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      client.identification_number.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const totalClients = clients.length
-  const activeClients = clients.filter((c) => c.isActive).length
-  const totalDebt = clients.reduce((sum, c) => sum + c.currentDebt, 0)
+  const activeClients = clients.filter((c) => c.is_active).length
+  const totalDebt = clients.reduce((sum, c) => sum + c.current_debt, 0)
 
   const openDialog = (client?: Client) => {
+    form.reset()
     if (client) {
       setEditingClient(client)
-      setFormData(client)
+      form.setValue("name", client.name)
+      form.setValue("email", client.email)
+      form.setValue("phone", client.phone || "")
+      form.setValue("address", client.address || "")
+      form.setValue("identification_type", client.identification_type as any)
+      form.setValue("identification_number", client.identification_number)
+      form.setValue("credit_limit", client.credit_limit)
+      form.setValue("current_debt", client.current_debt)
+      form.setValue("is_active", client.is_active)
     } else {
       setEditingClient(null)
-      setFormData({
+      form.reset({
         name: "",
         email: "",
         phone: "",
         address: "",
-        identificationType: "CI",
-        identificationNumber: "",
-        creditLimit: 0,
-        currentDebt: 0,
-        isActive: true,
+        identification_type: "CI",
+        identification_number: "",
+        credit_limit: 100,
+        current_debt: 0,
+        is_active: true,
       })
     }
     setShowDialog(true)
   }
 
-  const handleSubmit = () => {
-    if (!formData.name || !formData.email || !formData.identificationNumber) {
-      alert("Complete los campos requeridos")
-      return
-    }
-
-    if (editingClient) {
-      setClients(
-        clients.map((client) =>
-          client.id === editingClient.id
-            ? { ...client, ...formData }
-            : client
-        )
-      )
-    } else {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        name: formData.name!,
-        email: formData.email!,
-        phone: formData.phone || "",
-        address: formData.address || "",
-        identificationType: formData.identificationType || "CI",
-        identificationNumber: formData.identificationNumber!,
-        creditLimit: formData.creditLimit || 0,
-        currentDebt: formData.currentDebt || 0,
-        isActive: formData.isActive ?? true,
+  const onSubmit = async (data: ClientFormValues) => {
+    try {
+      if (editingClient) {
+        await updateMutation.mutateAsync({ id: editingClient.id, data })
+        toast.success("Cliente actualizado exitosamente")
+      } else {
+        await createMutation.mutateAsync(data)
+        toast.success("Cliente registrado exitosamente")
       }
-      setClients([...clients, newClient])
+      setShowDialog(false)
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Error al procesar el cliente")
     }
-    setShowDialog(false)
   }
 
-  const toggleClientStatus = (id: string) => {
-    setClients(
-      clients.map((client) =>
-        client.id === id ? { ...client, isActive: !client.isActive } : client
-      )
-    )
+  const toggleClientStatus = async (client: Client) => {
+    try {
+      await updateMutation.mutateAsync({
+        id: client.id,
+        data: { is_active: !client.is_active }
+      })
+      toast.success(client.is_active ? "Cliente desactivado" : "Cliente activado")
+    } catch (e) {
+      toast.error("Error al cambiar estado del cliente")
+    }
   }
 
-  const deleteClient = (id: string) => {
-    if (confirm("¿Está seguro de eliminar este cliente?")) {
-      setClients(clients.filter((client) => client.id !== id))
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Está seguro de eliminar este cliente de forma permanente?")) {
+      try {
+        await deleteMutation.mutateAsync(id)
+        toast.success("Cliente eliminado")
+      } catch (e) {
+        toast.error("Error al eliminar cliente")
+      }
     }
   }
 
@@ -195,89 +177,53 @@ export function ClientsModule() {
     <div className="flex h-full flex-col overflow-hidden bg-background/50">
       {/* Header Stats */}
       <div className="border-b border-border bg-card/50 p-6">
-        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Clientes
-              </CardTitle>
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-muted-foreground"><Users className="w-5 h-5 text-primary" /> Total Clientes</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold text-foreground">{totalClients}</p>
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Clientes Activos
-              </CardTitle>
+          <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-muted-foreground"><UserPlus className="w-5 h-5 text-emerald-500"/> Clientes Activos</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-emerald-600">
-                {activeClients}
-              </p>
+              <p className="text-3xl font-bold text-emerald-600">{activeClients}</p>
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Deuda Total
-              </CardTitle>
+          <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-muted-foreground"><DollarSign className="w-5 h-5 text-amber-500" /> Deuda Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-primary">
-                ${totalDebt.toFixed(2)}
-              </p>
+              <p className="text-3xl font-bold text-primary">${totalDebt.toFixed(2)}</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Search and Actions */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar clientes por nombre, email o identificación..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-12 rounded-xl border-primary/30 pl-12"
+              className="h-12 rounded-xl border-border bg-card pr-4 pl-12 text-base shadow-sm focus-visible:ring-primary/20"
             />
           </div>
           <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="gap-2 rounded-xl border-2 font-semibold"
-              onClick={() => {
-                alert("Descargando plantilla Excel...")
-              }}
-            >
-              <Download className="h-4 w-4" />
-              Descargar Plantilla
+            <Button variant="outline" className="h-12 gap-2 rounded-xl border font-semibold shadow-sm" onClick={() => alert("Próximamente")}>
+              <Download className="h-4 w-4" /> Exportar
             </Button>
             <Button
-              variant="outline"
-              className="gap-2 rounded-xl border-2 font-semibold"
-              onClick={() => {
-                const input = document.createElement("input")
-                input.type = "file"
-                input.accept = ".xlsx,.xls,.csv"
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0]
-                  if (file) {
-                    alert(`Importando archivo: ${file.name}`)
-                  }
-                }
-                input.click()
-              }}
-            >
-              <Upload className="h-4 w-4" />
-              Importar Excel
-            </Button>
-            <Button
-              onClick={() => setShowDialog(true)}
-              className="h-12 gap-2 rounded-xl bg-primary px-6 text-primary-foreground shadow-lg hover:bg-primary/90"
+              onClick={() => openDialog()}
+              className="h-12 gap-2 rounded-xl shadow-md font-semibold"
             >
               <UserPlus className="h-5 w-5" />
               Nuevo Cliente
@@ -288,38 +234,30 @@ export function ClientsModule() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto p-6">
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-border/50 shadow-md h-full">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-secondary/80 backdrop-blur-md z-10">
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="font-semibold">Cliente</TableHead>
                 <TableHead className="font-semibold">Contacto</TableHead>
                 <TableHead className="font-semibold">Identificación</TableHead>
-                <TableHead className="text-right font-semibold">
-                  Límite Crédito
-                </TableHead>
-                <TableHead className="text-right font-semibold">
-                  Deuda Actual
-                </TableHead>
+                <TableHead className="text-right font-semibold">Límite Crédito</TableHead>
+                <TableHead className="text-right font-semibold">Deuda Actual</TableHead>
                 <TableHead className="text-center font-semibold">Estado</TableHead>
-                <TableHead className="text-right font-semibold">Acciones</TableHead>
+                <TableHead className="text-right pr-6 font-semibold">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredClients.map((client) => (
-                <TableRow key={client.id} className="border-border">
+                <TableRow key={client.id} className="border-border hover:bg-muted/50 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                         <UserCircle className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <p className="font-semibold text-foreground">
-                          {client.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {client.address}
-                        </p>
+                        <p className="font-semibold text-foreground">{client.name}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1 max-w-[200px]" title={client.address}>{client.address || "Sin dirección"}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -327,61 +265,52 @@ export function ClientsModule() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-3 w-3 text-muted-foreground" />
-                        <span>{client.email}</span>
+                        <span className="truncate">{client.email}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Phone className="h-3 w-3 text-muted-foreground" />
-                        <span>{client.phone}</span>
+                        <span>{client.phone || "No especificado"}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="font-mono">
-                      {client.identificationType} {client.identificationNumber}
+                    <Badge variant="outline" className="font-mono bg-background">
+                      {client.identification_type}-{client.identification_number}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    ${client.creditLimit.toFixed(2)}
+                  <TableCell className="text-right font-semibold text-muted-foreground">
+                    ${client.credit_limit.toFixed(2)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <span
-                      className={`font-semibold ${
-                        client.currentDebt > 0
-                          ? "text-amber-600"
-                          : "text-emerald-600"
-                      }`}
-                    >
-                      ${client.currentDebt.toFixed(2)}
+                    <span className={`font-bold ${client.current_debt > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                      ${client.current_debt.toFixed(2)}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
                     <Switch
-                      checked={client.isActive}
-                      onCheckedChange={() => toggleClientStatus(client.id)}
+                      checked={client.is_active}
+                      onCheckedChange={() => toggleClientStatus(client)}
                     />
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openDialog(client)}
-                        className="h-8 w-8 hover:bg-accent/50"
-                      >
+                  <TableCell className="text-right pr-4">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => openDialog(client)} className="hover:bg-primary/10 hover:text-primary">
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => deleteClient(client.id)}
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      >
+                      <Button size="icon" variant="ghost" onClick={() => handleDelete(client.id)} className="text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredClients.length === 0 && (
+                 <TableRow>
+                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                     No se encontraron clientes.
+                   </TableCell>
+                 </TableRow>
+              )}
             </TableBody>
           </Table>
         </Card>
@@ -389,168 +318,131 @@ export function ClientsModule() {
 
       {/* Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
-              {editingClient ? "Editar Cliente" : "Nuevo Cliente"}
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0 shadow-2xl rounded-2xl border-0">
+          <DialogHeader className="p-6 bg-primary/5 border-b border-border sticky top-0 z-10 backdrop-blur-sm">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <span className="p-2 rounded-lg bg-primary/10 text-primary">
+                {editingClient ? <Edit className="h-5 w-5"/> : <UserPlus className="h-5 w-5"/>}
+              </span>
+              {editingClient ? "Editar Cliente" : "Registrar Cliente"}
             </DialogTitle>
-            <DialogDescription>
-              Complete la información del cliente
-            </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-6 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre Completo *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 space-y-6">
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre o Empresa *</FormLabel>
+                    <FormControl><Input placeholder="Juan Pérez / ACME CA" {...field} className="bg-background" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email *</FormLabel>
+                    <FormControl><Input type="email" placeholder="correo@ejemplo.com" {...field} className="bg-background" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="identification_type" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Identificación *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger className="bg-background"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="CI">Cédula de Identidad (CI)</SelectItem>
+                        <SelectItem value="RIF">RIF</SelectItem>
+                        <SelectItem value="Pasaporte">Pasaporte</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
+                <FormField control={form.control} name="identification_number" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número de Identificación *</FormLabel>
+                    <FormControl><Input placeholder="V-12345678" {...field} className="bg-background" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl><Input placeholder="+58 412..." {...field} className="bg-background" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="idType">Tipo de Identificación *</Label>
-                <Select
-                  value={formData.identificationType}
-                  onValueChange={(value: "CI" | "RIF" | "Pasaporte") =>
-                    setFormData({ ...formData, identificationType: value })
-                  }
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-primary/30">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CI">Cédula de Identidad (CI)</SelectItem>
-                    <SelectItem value="RIF">RIF</SelectItem>
-                    <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormField control={form.control} name="address" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dirección Fiscal</FormLabel>
+                    <FormControl><Input placeholder="Calle, Ciudad, Zona..." {...field} className="bg-background" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="idNumber">Número de Identificación *</Label>
-                <Input
-                  id="idNumber"
-                  value={formData.identificationNumber}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      identificationNumber: e.target.value,
-                    })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <div className="bg-secondary/30 p-5 rounded-2xl border-2 border-primary/10 grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="credit_limit" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Límite de Crédito ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <Input type="number" step="0.01" {...field} className="pl-7 bg-background font-mono" />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="creditLimit">Límite de Crédito ($)</Label>
-                <Input
-                  id="creditLimit"
-                  type="number"
-                  step="0.01"
-                  value={formData.creditLimit}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      creditLimit: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
+                <FormField control={form.control} name="current_debt" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Deuda Actual ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 font-bold">$</span>
+                        <Input type="number" step="0.01" {...field} className="pl-7 bg-background font-mono border-amber-500/30 focus-visible:ring-amber-500/40" disabled />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="currentDebt">Deuda Actual ($)</Label>
-                <Input
-                  id="currentDebt"
-                  type="number"
-                  step="0.01"
-                  value={formData.currentDebt}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      currentDebt: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <FormField control={form.control} name="is_active" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 bg-muted/20">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base text-foreground">Estado del Cliente</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Mantén activo al cliente para poder realizar ventas a crédito o facturación directa.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )} />
 
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formData.isActive}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, isActive: checked })
-                }
-              />
-              <Label>Cliente activo</Label>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowDialog(false)}
-              className="rounded-xl"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className="rounded-xl bg-primary px-6 text-primary-foreground hover:bg-primary/90"
-            >
-              {editingClient ? "Actualizar" : "Crear"} Cliente
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="pt-4 sticky bottom-0 z-10 bg-background pb-2 mt-4 gap-2">
+                <Button type="button" variant="ghost" className="px-6 h-12 rounded-xl" onClick={() => setShowDialog(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="flex-1 h-12 rounded-xl shadow-lg shadow-primary/20 font-bold text-lg">
+                  {editingClient ? "Actualizar Cliente" : "Guardar Cliente"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

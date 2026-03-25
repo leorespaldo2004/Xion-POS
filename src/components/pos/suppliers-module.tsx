@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { z } from "zod"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import {
   Search,
   UserPlus,
@@ -39,171 +42,149 @@ import {
   Building2,
   Mail,
   Phone,
-  MapPin,
-  Package,
   Upload,
   Download,
 } from "lucide-react"
 
-interface Supplier {
-  id: string
-  name: string
-  email: string
-  phone: string
-  address: string
-  identificationType: "RIF" | "CI" | "Pasaporte"
-  identificationNumber: string
-  category: string
-  paymentTerms: string
-  notes: string
-  isActive: boolean
-}
+import {
+  useSuppliers,
+  useCreateSupplier,
+  useUpdateSupplier,
+  useDeleteSupplier,
+  Supplier,
+} from "@/hooks/queries/use-suppliers"
+import { toast } from "sonner"
 
-const mockSuppliers: Supplier[] = [
-  {
-    id: "1",
-    name: "Distribuidora La Principal C.A.",
-    email: "ventas@distribuidora.com",
-    phone: "+58 212-1234567",
-    address: "Zona Industrial, Caracas",
-    identificationType: "RIF",
-    identificationNumber: "J-30123456-7",
-    category: "Bebidas",
-    paymentTerms: "30 días",
-    notes: "Proveedor principal de bebidas",
-    isActive: true,
-  },
-  {
-    id: "2",
-    name: "Alimentos del Centro S.A.",
-    email: "compras@alimentoscentro.com",
-    phone: "+58 241-9876543",
-    address: "Valencia, Estado Carabobo",
-    identificationType: "RIF",
-    identificationNumber: "J-40987654-3",
-    category: "Alimentos",
-    paymentTerms: "15 días",
-    notes: "Productos frescos y enlatados",
-    isActive: true,
-  },
-  {
-    id: "3",
-    name: "Snacks Mayorista",
-    email: "info@snacksmayorista.com",
-    phone: "+58 424-5551234",
-    address: "Maracay, Estado Aragua",
-    identificationType: "RIF",
-    identificationNumber: "J-25555678-9",
-    category: "Snacks",
-    paymentTerms: "45 días",
-    notes: "Distribuidor autorizado de marcas internacionales",
-    isActive: false,
-  },
-]
+const supplierSchema = z.object({
+  name: z.string().min(2, "El nombre de la empresa es obligatorio"),
+  email: z.string().email("Correo electrónico inválido"),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  identification_type: z.enum(["RIF", "CI", "Pasaporte"]),
+  identification_number: z.string().min(5, "Número de identificación requerido"),
+  category: z.string().min(1, "La categoría es obligatoria"),
+  payment_terms: z.string().optional(),
+  notes: z.string().optional(),
+  is_active: z.boolean().default(true),
+})
+
+type SupplierFormValues = z.infer<typeof supplierSchema>
 
 const categories = [
   "Bebidas",
   "Alimentos",
   "Snacks",
   "Limpieza",
+  "Equipos",
   "Varios",
 ]
 
 export function SuppliersModule() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers)
   const [searchTerm, setSearchTerm] = useState("")
   const [showDialog, setShowDialog] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
-  const [formData, setFormData] = useState<Partial<Supplier>>({
-    name: "",
-    email: "",
-    phone: "",
-    address: "",
-    identificationType: "RIF",
-    identificationNumber: "",
-    category: "Bebidas",
-    paymentTerms: "",
-    notes: "",
-    isActive: true,
+
+  const { data: suppliers = [] } = useSuppliers()
+  const createMutation = useCreateSupplier()
+  const updateMutation = useUpdateSupplier()
+  const deleteMutation = useDeleteSupplier()
+
+  const form = useForm<SupplierFormValues>({
+    resolver: zodResolver(supplierSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      identification_type: "RIF",
+      identification_number: "",
+      category: "Varios",
+      payment_terms: "",
+      notes: "",
+      is_active: true,
+    }
   })
 
   const filteredSuppliers = suppliers.filter(
     (supplier) =>
       supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.identificationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplier.identification_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.category.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const totalSuppliers = suppliers.length
-  const activeSuppliers = suppliers.filter((s) => s.isActive).length
+  const activeSuppliers = suppliers.filter((s) => s.is_active).length
 
   const openDialog = (supplier?: Supplier) => {
+    form.reset()
     if (supplier) {
       setEditingSupplier(supplier)
-      setFormData(supplier)
+      form.reset({
+        name: supplier.name,
+        email: supplier.email,
+        phone: supplier.phone || "",
+        address: supplier.address || "",
+        identification_type: supplier.identification_type as any,
+        identification_number: supplier.identification_number,
+        category: supplier.category,
+        payment_terms: supplier.payment_terms || "",
+        notes: supplier.notes || "",
+        is_active: supplier.is_active,
+      })
     } else {
       setEditingSupplier(null)
-      setFormData({
+      form.reset({
         name: "",
         email: "",
         phone: "",
         address: "",
-        identificationType: "RIF",
-        identificationNumber: "",
-        category: "Bebidas",
-        paymentTerms: "",
+        identification_type: "RIF",
+        identification_number: "",
+        category: "Varios",
+        payment_terms: "",
         notes: "",
-        isActive: true,
+        is_active: true,
       })
     }
     setShowDialog(true)
   }
 
-  const handleSubmit = () => {
-    if (!formData.name || !formData.email || !formData.identificationNumber) {
-      alert("Complete los campos requeridos")
-      return
-    }
-
-    if (editingSupplier) {
-      setSuppliers(
-        suppliers.map((supplier) =>
-          supplier.id === editingSupplier.id
-            ? { ...supplier, ...formData }
-            : supplier
-        )
-      )
-    } else {
-      const newSupplier: Supplier = {
-        id: Date.now().toString(),
-        name: formData.name!,
-        email: formData.email!,
-        phone: formData.phone || "",
-        address: formData.address || "",
-        identificationType: formData.identificationType || "RIF",
-        identificationNumber: formData.identificationNumber!,
-        category: formData.category || "Bebidas",
-        paymentTerms: formData.paymentTerms || "",
-        notes: formData.notes || "",
-        isActive: formData.isActive ?? true,
+  const onSubmit = async (data: SupplierFormValues) => {
+    try {
+      if (editingSupplier) {
+        await updateMutation.mutateAsync({ id: editingSupplier.id, data })
+        toast.success("Proveedor actualizado exitosamente")
+      } else {
+        await createMutation.mutateAsync(data)
+        toast.success("Proveedor registrado exitosamente")
       }
-      setSuppliers([...suppliers, newSupplier])
+      setShowDialog(false)
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Error al procesar el proveedor")
     }
-    setShowDialog(false)
   }
 
-  const toggleSupplierStatus = (id: string) => {
-    setSuppliers(
-      suppliers.map((supplier) =>
-        supplier.id === id ? { ...supplier, isActive: !supplier.isActive } : supplier
-      )
-    )
+  const toggleSupplierStatus = async (supplier: Supplier) => {
+    try {
+      await updateMutation.mutateAsync({
+        id: supplier.id,
+        data: { is_active: !supplier.is_active }
+      })
+      toast.success(supplier.is_active ? "Proveedor desactivado" : "Proveedor activado")
+    } catch (e) {
+      toast.error("Error al cambiar estado")
+    }
   }
 
-  const deleteSupplier = (id: string) => {
-    if (confirm("¿Está seguro de eliminar este proveedor?")) {
-      setSuppliers(suppliers.filter((supplier) => supplier.id !== id))
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Está seguro de eliminar este proveedor de forma permanente?")) {
+      try {
+        await deleteMutation.mutateAsync(id)
+        toast.success("Proveedor eliminado")
+      } catch (e) {
+        toast.error("Error al eliminar proveedor")
+      }
     }
   }
 
@@ -212,10 +193,10 @@ export function SuppliersModule() {
       {/* Header Stats */}
       <div className="border-b border-border bg-card/50 p-6">
         <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Proveedores
+          <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" /> Total Proveedores
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -223,10 +204,10 @@ export function SuppliersModule() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Proveedores Activos
+          <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-emerald-500" /> Proveedores Activos
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -238,52 +219,29 @@ export function SuppliersModule() {
         </div>
 
         {/* Search and Actions */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar proveedores por nombre, email, identificación o categoría..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-12 rounded-xl border-primary/30 pl-12"
+              className="h-12 rounded-xl border-border bg-card pr-4 pl-12 shadow-sm focus-visible:ring-primary/20 text-base"
             />
           </div>
           <div className="flex gap-3">
             <Button
               variant="outline"
-              className="gap-2 rounded-xl border-2 font-semibold"
-              onClick={() => {
-                alert("Descargando plantilla Excel...")
-              }}
+              className="gap-2 rounded-xl border h-12 font-semibold shadow-sm"
+              onClick={() => alert("Próximamente")}
             >
-              <Download className="h-4 w-4" />
-              Descargar Plantilla
-            </Button>
-            <Button
-              variant="outline"
-              className="gap-2 rounded-xl border-2 font-semibold"
-              onClick={() => {
-                const input = document.createElement("input")
-                input.type = "file"
-                input.accept = ".xlsx,.xls,.csv"
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0]
-                  if (file) {
-                    alert(`Importando archivo: ${file.name}`)
-                  }
-                }
-                input.click()
-              }}
-            >
-              <Upload className="h-4 w-4" />
-              Importar Excel
+              <Download className="h-4 w-4" /> Exportar
             </Button>
             <Button
               onClick={() => openDialog()}
-              className="h-12 gap-2 rounded-xl bg-primary px-6 text-primary-foreground shadow-lg hover:bg-primary/90"
+              className="h-12 gap-2 rounded-xl bg-primary px-6 text-primary-foreground shadow-md font-semibold"
             >
-              <UserPlus className="h-5 w-5" />
-              Nuevo Proveedor
+              <UserPlus className="h-5 w-5" /> Nuevo Proveedor
             </Button>
           </div>
         </div>
@@ -291,33 +249,33 @@ export function SuppliersModule() {
 
       {/* Table */}
       <div className="flex-1 overflow-auto p-6">
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-border/50 shadow-md h-full">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-secondary/80 backdrop-blur-md z-10">
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="font-semibold">Proveedor</TableHead>
-                <TableHead className="font-semibold">Contacto</TableHead>
-                <TableHead className="font-semibold">Identificación</TableHead>
-                <TableHead className="font-semibold">Categoría</TableHead>
-                <TableHead className="font-semibold">Términos de Pago</TableHead>
-                <TableHead className="text-center font-semibold">Estado</TableHead>
-                <TableHead className="text-right font-semibold">Acciones</TableHead>
+                <TableHead className="font-semibold text-foreground">Proveedor</TableHead>
+                <TableHead className="font-semibold text-foreground">Contacto</TableHead>
+                <TableHead className="font-semibold text-foreground">Identificación</TableHead>
+                <TableHead className="font-semibold text-foreground">Categoría</TableHead>
+                <TableHead className="font-semibold text-foreground">Términos de Pago</TableHead>
+                <TableHead className="text-center font-semibold text-foreground">Estado</TableHead>
+                <TableHead className="text-right pr-6 font-semibold text-foreground">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSuppliers.map((supplier) => (
-                <TableRow key={supplier.id} className="border-border">
+                <TableRow key={supplier.id} className="border-border hover:bg-muted/50 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <Building2 className="h-6 w-6 text-primary" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
+                        <Building2 className="h-5 w-5 text-primary" />
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">
                           {supplier.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {supplier.address}
+                        <p className="text-xs text-muted-foreground line-clamp-1 max-w-[200px]" title={supplier.address}>
+                          {supplier.address || "Sin dirección"}
                         </p>
                       </div>
                     </div>
@@ -326,55 +284,52 @@ export function SuppliersModule() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm">
                         <Mail className="h-3 w-3 text-muted-foreground" />
-                        <span>{supplier.email}</span>
+                        <span className="truncate">{supplier.email}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Phone className="h-3 w-3 text-muted-foreground" />
-                        <span>{supplier.phone}</span>
+                        <span>{supplier.phone || "No especificado"}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="font-mono">
-                      {supplier.identificationType} {supplier.identificationNumber}
+                    <Badge variant="outline" className="font-mono bg-background">
+                      {supplier.identification_type}-{supplier.identification_number}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className="bg-primary/10 text-primary">
+                    <Badge className="bg-primary/10 text-primary border-0 hover:bg-primary/20">
                       {supplier.category}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-medium">
-                    {supplier.paymentTerms}
+                  <TableCell className="font-medium text-sm text-muted-foreground">
+                    {supplier.payment_terms || "-"}
                   </TableCell>
                   <TableCell className="text-center">
                     <Switch
-                      checked={supplier.isActive}
-                      onCheckedChange={() => toggleSupplierStatus(supplier.id)}
+                      checked={supplier.is_active}
+                      onCheckedChange={() => toggleSupplierStatus(supplier)}
                     />
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openDialog(supplier)}
-                        className="h-8 w-8 hover:bg-accent/50"
-                      >
+                  <TableCell className="text-right pr-4">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" className="hover:bg-primary/10 hover:text-primary" onClick={() => openDialog(supplier)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => deleteSupplier(supplier.id)}
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      >
+                      <Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(supplier.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredSuppliers.length === 0 && (
+                 <TableRow>
+                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                     No se encontraron proveedores.
+                   </TableCell>
+                 </TableRow>
+              )}
             </TableBody>
           </Table>
         </Card>
@@ -382,184 +337,138 @@ export function SuppliersModule() {
 
       {/* Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
-              {editingSupplier ? "Editar Proveedor" : "Nuevo Proveedor"}
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0 shadow-2xl rounded-2xl border-0">
+          <DialogHeader className="p-6 bg-primary/5 border-b border-border sticky top-0 z-10 backdrop-blur-sm">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <span className="p-2 rounded-lg bg-primary/10 text-primary">
+                {editingSupplier ? <Edit className="h-5 w-5"/> : <UserPlus className="h-5 w-5"/>}
+              </span>
+              {editingSupplier ? "Editar Proveedor" : "Registrar Proveedor"}
             </DialogTitle>
-            <DialogDescription>
-              Complete la información del proveedor
+            <DialogDescription className="text-base text-muted-foreground ml-11">
+              Complete la información técnica y de contacto del proveedor.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-6 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre de la Empresa *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 space-y-6">
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem className="col-span-2 md:col-span-1">
+                    <FormLabel>Nombre de la Empresa *</FormLabel>
+                    <FormControl><Input placeholder="Distribuidora ACME CA" {...field} className="bg-background"/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem className="col-span-2 md:col-span-1">
+                    <FormLabel>Email *</FormLabel>
+                    <FormControl><Input type="email" placeholder="ventas@ejemplo.com" {...field} className="bg-background"/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="identification_type" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Identificación *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger className="bg-background"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="RIF">RIF</SelectItem>
+                        <SelectItem value="CI">Cédula de Identidad (CI)</SelectItem>
+                        <SelectItem value="Pasaporte">Pasaporte</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
+                <FormField control={form.control} name="identification_number" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número de Identificación *</FormLabel>
+                    <FormControl><Input placeholder="J-12345678" {...field} className="bg-background"/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl><Input placeholder="+58 412..." {...field} className="bg-background"/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="idType">Tipo de Identificación *</Label>
-                <Select
-                  value={formData.identificationType}
-                  onValueChange={(value: "RIF" | "CI" | "Pasaporte") =>
-                    setFormData({ ...formData, identificationType: value })
-                  }
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-primary/30">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RIF">RIF</SelectItem>
-                    <SelectItem value="CI">Cédula de Identidad (CI)</SelectItem>
-                    <SelectItem value="Pasaporte">Pasaporte</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormField control={form.control} name="category" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Categoría</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger className="bg-background"><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="idNumber">Número de Identificación *</Label>
-                <Input
-                  id="idNumber"
-                  value={formData.identificationNumber}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      identificationNumber: e.target.value,
-                    })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Dirección Fiscal</FormLabel>
+                  <FormControl><Input placeholder="Calle, Ciudad, Zona..." {...field} className="bg-background"/></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="category">Categoría</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, category: value })
-                  }
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-primary/30">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField control={form.control} name="payment_terms" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Términos de Pago</FormLabel>
+                  <FormControl><Input placeholder="Ej: Pago a 30 días, Crédito semanal..." {...field} className="bg-background"/></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
-              <div className="space-y-2">
-                <Label htmlFor="paymentTerms">Términos de Pago</Label>
-                <Input
-                  id="paymentTerms"
-                  placeholder="Ej: 30 días"
-                  value={formData.paymentTerms}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      paymentTerms: e.target.value,
-                    })
-                  }
-                  className="h-11 rounded-xl border-primary/30"
-                />
-              </div>
-            </div>
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notas y Referencias</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Información adicional sobre el proveedor, tiempos de entrega..." {...field} className="min-h-[80px] bg-background resize-none"/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notas</Label>
-              <Textarea
-                id="notes"
-                placeholder="Información adicional sobre el proveedor..."
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-                className="min-h-[80px] rounded-xl border-primary/30"
-              />
-            </div>
+              <FormField control={form.control} name="is_active" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border/60 p-4 bg-muted/30">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base text-foreground">Estado del Proveedor</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Activa o inactiva este proveedor en el sistema.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )} />
 
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formData.isActive}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, isActive: checked })
-                }
-              />
-              <Label>Proveedor activo</Label>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowDialog(false)}
-              className="rounded-xl"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className="rounded-xl bg-primary px-6 text-primary-foreground hover:bg-primary/90"
-            >
-              {editingSupplier ? "Actualizar" : "Crear"} Proveedor
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="pt-4 sticky bottom-0 z-10 bg-background pb-2 mt-4 gap-2 border-t">
+                <Button type="button" variant="ghost" className="px-6 h-12 rounded-xl" onClick={() => setShowDialog(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="flex-1 h-12 rounded-xl shadow-lg shadow-primary/20 font-bold text-lg">
+                  {editingSupplier ? "Actualizar Proveedor" : "Guardar Proveedor"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
