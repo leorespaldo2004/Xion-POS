@@ -22,15 +22,50 @@ import {
   Laptop,
   Save,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSystemStatus, useUpdateSystem } from "@/hooks/queries/use-system"
+import { toast } from "sonner"
 
 export function PreferencesModule() {
+  const { data: config, isLoading } = useSystemStatus()
+  const updateSystem = useUpdateSystem()
+
   const [theme, setTheme] = useState("light")
   const [fontSize, setFontSize] = useState([16])
   const [primaryColor, setPrimaryColor] = useState("#132DA8")
   const [compactMode, setCompactMode] = useState(false)
   const [animations, setAnimations] = useState(true)
   const [highContrast, setHighContrast] = useState(false)
+  const [interfaceDensity, setInterfaceDensity] = useState("normal")
+
+  useEffect(() => {
+    if (config) {
+      setTheme(config.theme_mode || "light")
+      setFontSize([config.font_size || 16])
+      setPrimaryColor(config.primary_color || "#132DA8")
+      setCompactMode(config.compact_mode ?? false)
+      setAnimations(config.animations ?? true)
+      setHighContrast(config.high_contrast ?? false)
+      setInterfaceDensity(config.interface_density || "normal")
+    }
+  }, [config])
+
+  const handleSave = async () => {
+    try {
+      await updateSystem.mutateAsync({
+        theme_mode: theme,
+        font_size: fontSize[0],
+        primary_color: primaryColor,
+        compact_mode: compactMode,
+        animations: animations,
+        high_contrast: highContrast,
+        interface_density: interfaceDensity,
+      })
+      toast.success("Preferencias del sistema actualizadas exitosamente")
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Error actualizando preferencias locales")
+    }
+  }
 
   const themeOptions = [
     { value: "light", label: "Claro", icon: Sun },
@@ -241,7 +276,7 @@ export function PreferencesModule() {
             <Label className="text-sm font-semibold text-foreground">
               Densidad de la Interfaz
             </Label>
-            <Select defaultValue="normal">
+            <Select value={interfaceDensity} onValueChange={setInterfaceDensity}>
               <SelectTrigger className="h-10">
                 <SelectValue />
               </SelectTrigger>
@@ -256,13 +291,17 @@ export function PreferencesModule() {
       </Card>
 
       {/* Save button */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" className="h-12 px-6">
-          Restaurar Predeterminados
+      <div className="flex justify-end gap-3 pb-8">
+        <Button variant="outline" className="h-12 px-6" onClick={() => window.location.reload()}>
+          Descartar Cambios
         </Button>
-        <Button className="h-12 gap-2 bg-primary px-8 text-primary-foreground hover:bg-primary/90">
+        <Button 
+          disabled={isLoading || updateSystem.isPending} 
+          onClick={handleSave} 
+          className="h-12 gap-2 bg-primary px-8 text-primary-foreground hover:bg-primary/90"
+        >
           <Save className="h-4 w-4" />
-          Guardar Cambios
+          {updateSystem.isPending ? "Aplicando..." : "Guardar Cambios"}
         </Button>
       </div>
     </div>

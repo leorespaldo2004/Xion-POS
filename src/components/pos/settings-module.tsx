@@ -24,19 +24,68 @@ import {
   Save,
   Upload,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSystemStatus, useUpdateSystem } from "@/hooks/queries/use-system"
+import { toast } from "sonner"
 
 export function SettingsModule() {
+  const { data: config, isLoading } = useSystemStatus()
+  const updateSystem = useUpdateSystem()
+
   const [storeName, setStoreName] = useState("Mi Tienda POS")
   const [storeRIF, setStoreRIF] = useState("J-12345678-9")
   const [storeAddress, setStoreAddress] = useState("")
   const [storePhone, setStorePhone] = useState("")
   const [exchangeRate, setExchangeRate] = useState("37.00")
   const [taxRate, setTaxRate] = useState("16")
+  const [enableTaxes, setEnableTaxes] = useState(true)
   const [wholesaleEnabled, setWholesaleEnabled] = useState(true)
   const [wholesaleMinQty, setWholesaleMinQty] = useState("10")
   const [autoPrint, setAutoPrint] = useState(true)
   const [printLogo, setPrintLogo] = useState(true)
+  const [ticketSize, setTicketSize] = useState("80mm")
+  const [ticketMessage, setTicketMessage] = useState("Gracias por su compra. ¡Vuelva pronto!")
+
+  useEffect(() => {
+    if (config) {
+      setStoreName(config.store_name || "Mi Tienda POS")
+      setStoreRIF(config.store_rif || "J-12345678-9")
+      setStoreAddress(config.store_address || "")
+      setStorePhone(config.store_phone || "")
+      setExchangeRate(config.current_exchange_rate_bs?.toString() || "36.5")
+      setTaxRate(config.tax_rate?.toString() || "16")
+      setEnableTaxes(config.enable_taxes ?? true)
+      setWholesaleEnabled(config.wholesale_enabled ?? true)
+      setWholesaleMinQty(config.wholesale_min_qty?.toString() || "10")
+      setAutoPrint(config.auto_print ?? true)
+      setPrintLogo(config.print_logo ?? true)
+      setTicketSize(config.ticket_size || "80mm")
+      setTicketMessage(config.ticket_message || "Gracias por su compra. ¡Vuelva pronto!")
+    }
+  }, [config])
+
+  const handleSave = async () => {
+    try {
+      await updateSystem.mutateAsync({
+        store_name: storeName,
+        store_rif: storeRIF,
+        store_address: storeAddress,
+        store_phone: storePhone,
+        current_exchange_rate_bs: parseFloat(exchangeRate) || 36.5,
+        tax_rate: parseFloat(taxRate) || 16.0,
+        enable_taxes: enableTaxes,
+        wholesale_enabled: wholesaleEnabled,
+        wholesale_min_qty: parseInt(wholesaleMinQty, 10) || 10,
+        auto_print: autoPrint,
+        print_logo: printLogo,
+        ticket_size: ticketSize,
+        ticket_message: ticketMessage
+      })
+      toast.success("Configuraciones globales actualizadas exitosamente")
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Error interno actualizando configuración")
+    }
+  }
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-auto bg-background/50 p-8">
@@ -160,7 +209,8 @@ export function SettingsModule() {
                 step="1"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value)}
-                className="h-10"
+                className="h-10 opacity-70 bg-muted cursor-not-allowed"
+                disabled
               />
             </div>
 
@@ -176,6 +226,21 @@ export function SettingsModule() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Tax switch */}
+          <div className="flex items-center justify-between">
+             <div className="space-y-1">
+               <Label className="text-sm font-semibold text-foreground">
+                 Cobrar IVA (Habilitar Impuestos)
+               </Label>
+               <p className="text-xs text-muted-foreground">
+                 Procesa las ventas exigiendo u omitiendo el cálculo de IVA (Negocios informales)
+               </p>
+             </div>
+             <Switch checked={enableTaxes} onCheckedChange={setEnableTaxes} />
           </div>
 
           <Separator />
@@ -255,7 +320,7 @@ export function SettingsModule() {
             <Label className="text-sm font-semibold text-foreground">
               Tamaño del Ticket
             </Label>
-            <Select defaultValue="80mm">
+            <Select value={ticketSize} onValueChange={setTicketSize}>
               <SelectTrigger className="h-10">
                 <SelectValue />
               </SelectTrigger>
@@ -274,6 +339,8 @@ export function SettingsModule() {
               Mensaje del Ticket
             </Label>
             <Textarea
+              value={ticketMessage}
+              onChange={(e) => setTicketMessage(e.target.value)}
               placeholder="Gracias por su compra. ¡Vuelva pronto!"
               className="min-h-20"
             />
@@ -386,13 +453,13 @@ export function SettingsModule() {
       </Card>
 
       {/* Save button */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" className="h-12 px-6">
-          Cancelar
+      <div className="flex justify-end gap-3 pb-8">
+        <Button variant="outline" className="h-12 px-6" onClick={() => window.location.reload()}>
+          Descartar
         </Button>
-        <Button className="h-12 gap-2 bg-primary px-8 text-primary-foreground hover:bg-primary/90">
+        <Button onClick={handleSave} disabled={isLoading || updateSystem.isPending} className="h-12 gap-2 bg-primary px-8 text-primary-foreground hover:bg-primary/90">
           <Save className="h-4 w-4" />
-          Guardar Configuraciones
+          {updateSystem.isPending ? "Aplicando..." : "Guardar Configuraciones"}
         </Button>
       </div>
     </div>

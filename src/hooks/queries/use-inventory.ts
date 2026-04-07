@@ -16,6 +16,8 @@ export interface Product {
   product_type: ProductType;
   tax_type: TaxType;
   unit_measure: string;
+  wholesale_price_usd: number;
+  package_quantity: number;
   cached_stock_quantity: number;
   min_stock_alert: number;
   tags?: string;
@@ -34,6 +36,8 @@ export interface CreateProductDTO {
   product_type: ProductType;
   tax_type: TaxType;
   unit_measure: string;
+  wholesale_price_usd: number;
+  package_quantity: number;
   min_stock_alert: number;
   tags?: string;
   combo_items?: { product_id: string; quantity: number }[];

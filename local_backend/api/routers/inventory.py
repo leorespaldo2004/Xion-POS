@@ -23,6 +23,8 @@ class ProductCreate(SQLModel):
     product_type: str = "physical"
     tax_type: str = "none"
     unit_measure: str = "UND"
+    wholesale_price_usd: float = 0.0
+    package_quantity: int = 1
     min_stock_alert: float = 0.0
     tags: Optional[str] = None
     combo_items: List[ComboItemCreate] = []
@@ -86,6 +88,8 @@ def create_product(payload: ProductCreate, session: Session = Depends(get_sessio
         product_type=ptype,
         tax_type=ttype,
         unit_measure=payload.unit_measure,
+        wholesale_price_usd=payload.wholesale_price_usd,
+        package_quantity=payload.package_quantity,
         cached_stock_quantity=0.0,
         min_stock_alert=payload.min_stock_alert,
         tags=payload.tags,

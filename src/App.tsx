@@ -3,6 +3,7 @@ import '../styles/globals.css';
 import { DashboardScreen } from '@/components/pos/dashboard-screen';
 // import { LoginScreen } from '@/components/pos/login-screen'; // Descomentar cuando actives el login
 import { apiClient } from '@/lib/api';
+import { useSystemStatus } from '@/hooks/queries/use-system';
 
 type BootState = 'checking' | 'ready' | 'failed';
 
@@ -12,6 +13,77 @@ export default function App() {
   
   // Omitimos la seguridad temporalmente fijando esto en "true"
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+
+  const { data: config } = useSystemStatus();
+
+  useEffect(() => {
+    if (config) {
+      const root = document.documentElement;
+
+      // 1. Theme Class Management
+      if (config.theme_mode === 'dark') {
+        root.classList.add('dark');
+      } else if (config.theme_mode === 'light') {
+        root.classList.remove('dark');
+      } else {
+        // auto
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          root.classList.add('dark');
+        } else {
+          root.classList.remove('dark');
+        }
+      }
+
+      // 2. Dynamic Style Tag Management (Better cascade for Tailwind v4 variables)
+      let styleTag = document.getElementById('xion-pos-dynamic-prefs');
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'xion-pos-dynamic-prefs';
+        document.head.appendChild(styleTag);
+      }
+
+      const cssLines = [`:root, .dark {`];
+
+      // Primary Color
+      if (config.primary_color) {
+        // Override both the internal Tailwind token and standard variables
+        cssLines.push(`  --color-primary: ${config.primary_color} !important;`);
+        cssLines.push(`  --primary: ${config.primary_color} !important;`);
+      }
+
+      // Interface Density (Radius)
+      if (config.interface_density === 'compact') {
+        cssLines.push(`  --radius: 0.3rem !important;`);
+      } else if (config.interface_density === 'comfortable') {
+        cssLines.push(`  --radius: 1rem !important;`);
+      } else {
+        cssLines.push(`  --radius: 0.625rem !important;`);
+      }
+
+      // Compact Mode (Spacing reduction)
+      if (config.compact_mode) {
+        cssLines.push(`  --spacing: 0.2rem !important;`);
+      }
+
+      // Animations
+      if (!config.animations) {
+        cssLines.push(`  --animate-duration: 0s !important;`);
+        cssLines.push(`  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }`);
+      }
+
+      // High Contrast
+      if (config.high_contrast) {
+        cssLines.push(`  filter: contrast(1.15) !important;`);
+      }
+
+      cssLines.push(`}`);
+
+      // Apply root scale safely
+      cssLines.push(`html { font-size: ${config.font_size || 16}px !important; }`);
+
+      styleTag.innerHTML = cssLines.join('\n');
+    }
+  }, [config]);
 
   useEffect(() => {
     let isMounted = true;

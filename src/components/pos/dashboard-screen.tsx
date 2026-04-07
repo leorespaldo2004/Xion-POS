@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSystemStatus } from "@/hooks/queries/use-system"
 import { DashboardSidebar } from "./dashboard-sidebar"
 import { DashboardHeader } from "./dashboard-header"
 import { DashboardContent } from "./dashboard-content"
@@ -23,6 +24,8 @@ interface DashboardScreenProps {
 export function DashboardScreen({ onLogout }: DashboardScreenProps) {
   const [activeNav, setActiveNav] = useState("Dashboard")
   const [showArqueo, setShowArqueo] = useState(false)
+  const { data: config } = useSystemStatus()
+  const exchangeRate = config?.current_exchange_rate_bs || 36.5
 
   const renderContent = () => {
     switch (activeNav) {
@@ -62,7 +65,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
         {/* Header */}
         <DashboardHeader
           title={activeNav === "Dashboard" ? "Caja Principal" : activeNav}
-          exchangeRate={37.0}
+          exchangeRate={exchangeRate}
           onLogout={onLogout}
         />
 

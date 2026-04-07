@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { z } from "zod"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import * as XLSX from "xlsx"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +14,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -32,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"
-import { Search, Plus, Edit, Trash2, Tag, Box, Layers, DollarSign, Info, ListChecks, ShoppingBag } from "lucide-react"
+import { Search, Plus, Edit, Trash2, Tag, Box, Layers, DollarSign, Info, ListChecks, ShoppingBag, FileSpreadsheet, Download, AlertCircle } from "lucide-react"
 
 import { localApiClient } from "@/lib/api-client"
 import {
@@ -54,6 +65,8 @@ const productSchema = z.object({
   tags: z.string().optional(),
   cost_usd: z.coerce.number().min(0, "Debe ser mayor o igual a 0"),
   price_usd: z.coerce.number().min(0, "Debe ser mayor o igual a 0"),
+  wholesale_price_usd: z.coerce.number().min(0, "Debe ser mayor o igual a 0").default(0),
+  package_quantity: z.coerce.number().int().min(1, "Debe ser al menos 1").default(1),
   min_stock_alert: z.coerce.number().min(0, "No puede ser negativo"),
   product_type: z.enum(["physical", "service", "virtual"]),
   tax_type: z.enum(["none", "vat", "islr"]),
@@ -69,6 +82,9 @@ type ProductFormValues = z.infer<typeof productSchema>
 export function InventoryModule() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isExcelDialogOpen, setIsExcelDialogOpen] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [alertConfig, setAlertConfig] = useState<{title: string, description: string, errors: string[]} | null>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
   const { data: products = [] } = useProducts()
@@ -97,6 +113,8 @@ export function InventoryModule() {
       tags: "",
       cost_usd: 0,
       price_usd: 0,
+      wholesale_price_usd: 0,
+      package_quantity: 1,
       min_stock_alert: 5,
       product_type: "physical",
       tax_type: "none",
@@ -114,10 +132,12 @@ export function InventoryModule() {
   const watchComboItems = form.watch("combo_items")
   const watchCost = form.watch("cost_usd") || 0
   const watchPrice = form.watch("price_usd") || 0
+  const watchWholesalePrice = form.watch("wholesale_price_usd") || 0
   
   const isVirtual = watchProductType === "virtual"
   const isService = watchProductType === "service"
   const profitMargin = watchPrice > 0 ? ((watchPrice - watchCost) / watchPrice) * 100 : 0
+  const wholesaleProfitMargin = watchWholesalePrice > 0 ? ((watchWholesalePrice - watchCost) / watchWholesalePrice) * 100 : 0
 
   // Cálculo automático de costo para combos en el formulario
   useEffect(() => {
@@ -139,6 +159,113 @@ export function InventoryModule() {
       })))
     : 0
 
+  const downloadExcelTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        SKU: "TEST-001",
+        CodigoBarras: "759123456",
+        Nombre: "Producto Prueba",
+        Descripcion: "Descripción breve",
+        CategoriasEtiquetas: "Bebida, General",
+        Costo_USD: 1.50,
+        PrecioVenta_USD: 2.00,
+        PrecioMayorista_USD: 1.80,
+        UnidadesPaquete: 12,
+        TipoProducto: "Fisico", // Fisico | Servicio
+        RegimenFiscal: "Exento", // Exento | IVA | ISLR
+        UnidadMedida: "UND",
+        AlertaStock: 5
+      }
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Platilla_Inventario")
+    XLSX.writeFile(wb, "Plantilla_Inventario_Xion.xlsx")
+  }
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      setIsImporting(true)
+      try {
+        const data = evt.target?.result
+        const workbook = XLSX.read(data, { type: 'binary' })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const rows = XLSX.utils.sheet_to_json(sheet)
+
+        let newErrors: string[] = []
+        let validPayloads: any[] = []
+
+        // Fase 1: Validación estricta y preparación
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i] as any
+          try {
+            if (!row.Nombre) throw new Error("Falta el campo obligatorio: Nombre")
+            if (row.PrecioVenta_USD === undefined || isNaN(Number(row.PrecioVenta_USD))) throw new Error("PrecioVenta_USD inválido o vacío")
+            
+            const sku = row.SKU ? String(row.SKU) : `EX-${Date.now().toString().slice(-6)}-${Math.floor(Math.random()*1000)}`
+            const rawType = String(row.TipoProducto || "Fisico").toLowerCase()
+            const mappedType = rawType.includes("serv") ? "service" : "physical"
+            
+            const rawTax = String(row.RegimenFiscal || "Exento").toLowerCase()
+            const mappedTax = rawTax.includes("iva") ? "vat" : rawTax.includes("islr") ? "islr" : "none"
+
+            validPayloads.push({
+              name: String(row.Nombre),
+              sku: sku,
+              barcode: row.CodigoBarras ? String(row.CodigoBarras) : null,
+              description: row.Descripcion ? String(row.Descripcion) : "",
+              tags: row.CategoriasEtiquetas ? String(row.CategoriasEtiquetas) : "",
+              cost_usd: Number(row.Costo_USD) || 0,
+              price_usd: Number(row.PrecioVenta_USD),
+              wholesale_price_usd: Number(row.PrecioMayorista_USD) || 0,
+              package_quantity: Math.max(1, Math.floor(Number(row.UnidadesPaquete) || 1)),
+              min_stock_alert: Number(row.AlertaStock) || 0,
+              product_type: mappedType as any,
+              tax_type: mappedTax as any,
+              unit_measure: row.UnidadMedida ? String(row.UnidadMedida) : "UND"
+            })
+          } catch (err: any) {
+            const rowIndex = row.__rowNum__ || Object.values(row)[0] || `Fila ${i + 1}`
+            newErrors.push(`Fila [${rowIndex}]: ${err.message}`)
+          }
+        }
+        
+        // Fase 2: Ejecución Condicionada (Todo o Nada)
+        if (newErrors.length > 0) {
+           setIsExcelDialogOpen(false) // Cerrar el modal excel
+           setAlertConfig({
+             title: "Error de Importación",
+             description: "El archivo Excel no pudo ser cargado porque presenta irregularidades. Por protección de datos, hemos abortado completamente la importación y ningún producto fue guardado.",
+             errors: newErrors
+           })
+           toast.error(`Importación abortada. Se identificaron ${newErrors.length} errores críticos.`)
+           // Al haber errores, NO se procesa la insersión a base de datos.
+        } else {
+           // Si el archivo es perfecto, procedemos:
+           for (const payload of validPayloads) {
+             await createMutation.mutateAsync(payload)
+           }
+           toast.success(`Importación Impecable: ${validPayloads.length} activos registrados.`)
+           setIsExcelDialogOpen(false)
+        }
+      } catch (error) {
+        toast.error("El archivo Excel está corrupto o es irreconocible.")
+        setAlertConfig({
+           title: "Archivo Dañado",
+           description: "El documento seleccionado no puede procesarse porque está corrupto o no tiene estructura binaria reconocible.",
+           errors: ["Error fatal al intentar leer el buffer Base64/XLSX del archivo."]
+        })
+      } finally {
+        setIsImporting(false)
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
   const handleOpenDialog = async (product?: Product) => {
     form.reset()
     if (product) {
@@ -150,6 +277,8 @@ export function InventoryModule() {
       form.setValue("tags", product.tags || "")
       form.setValue("cost_usd", product.cost_usd)
       form.setValue("price_usd", product.price_usd)
+      form.setValue("wholesale_price_usd", product.wholesale_price_usd || 0)
+      form.setValue("package_quantity", product.package_quantity || 1)
       form.setValue("min_stock_alert", product.min_stock_alert)
       form.setValue("product_type", product.product_type)
       form.setValue("tax_type", product.tax_type)
@@ -175,6 +304,8 @@ export function InventoryModule() {
         tags: "",
         cost_usd: 0,
         price_usd: 0,
+        wholesale_price_usd: 0,
+        package_quantity: 1,
         min_stock_alert: 5,
         product_type: "physical",
         tax_type: "none",
@@ -188,7 +319,11 @@ export function InventoryModule() {
   const onSubmit = async (data: ProductFormValues) => {
     try {
       if (isVirtual && data.combo_items && data.combo_items.length === 0) {
-        toast.error("Un combo debe tener al menos 1 producto")
+        setAlertConfig({
+          title: "Validación Incompleta",
+          description: "La configuración estructural del Combo / Promoción es inválida.",
+          errors: ["Un producto 'Combo' requiere estrictamente especificar al menos un (1) producto físico/servicio como parte de su receta o composición interna."]
+        })
         return
       }
 
@@ -217,7 +352,15 @@ export function InventoryModule() {
       }
       setIsAddDialogOpen(false)
     } catch (e: any) {
-      toast.error(e.response?.data?.detail || "Error al procesar el producto")
+      const msj = e.response?.data?.detail
+      const parsedErrors = Array.isArray(msj) ? msj.map((x: any) => typeof x === 'string' ? x : (x.msg || JSON.stringify(x))) : [msj || "Error catastrófico interno en el servidor"]
+      
+      setAlertConfig({
+         title: "Integridad de Datos",
+         description: "El sistema central de inventario rechazó los datos del formulario debido a que violan las reglas de integridad de la base de datos.",
+         errors: parsedErrors
+      })
+      toast.error("Formulario rechazado por el servidor.")
     }
   }
 
@@ -241,7 +384,7 @@ export function InventoryModule() {
         </Card>
         <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><DollarSign className="w-5 h-5 text-emerald-500"/> Valor Costo</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">${products.reduce((sum, p) => sum + p.cost_usd * p.cached_stock_quantity, 0).toFixed(2)}</p><p className="text-sm text-muted-foreground">Bs {(products.reduce((sum, p) => sum + p.cost_usd * p.cached_stock_quantity, 0) * exchangeRate).toFixed(2)}</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">${products.reduce((sum, p) => sum + p.cost_usd * p.cached_stock_quantity, 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p><p className="text-sm text-muted-foreground">Bs {(products.reduce((sum, p) => sum + p.cost_usd * p.cached_stock_quantity, 0) * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></CardContent>
         </Card>
         <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2"><Layers className="w-5 h-5 text-amber-500"/> Stock Bajo</CardTitle></CardHeader>
@@ -254,7 +397,10 @@ export function InventoryModule() {
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Buscar por nombre, SKU, etiquetas..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-12 rounded-xl border-border bg-card pr-4 pl-12 text-base shadow-sm focus-visible:ring-primary/20" />
         </div>
-        <Button onClick={() => handleOpenDialog()} className="h-12 gap-2 rounded-xl font-semibold shadow-md"><Plus className="h-5 w-5" /> Registrar Producto</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsExcelDialogOpen(true)} className="h-12 flex items-center justify-center font-semibold rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 shadow-sm"><FileSpreadsheet className="h-5 w-5 mr-2" />Excel</Button>
+          <Button onClick={() => handleOpenDialog()} className="h-12 gap-2 rounded-xl font-semibold shadow-md"><Plus className="h-5 w-5" /> Registrar Producto</Button>
+        </div>
       </div>
 
       <Card className="flex-1 overflow-hidden border-border/50 shadow-md">
@@ -265,7 +411,7 @@ export function InventoryModule() {
                 <TableHead>SKU</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Costo / Precio (USD)</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
                 <TableHead className="text-center">Stock</TableHead>
                 <TableHead className="text-right pr-6">Acciones</TableHead>
               </TableRow>
@@ -286,13 +432,15 @@ export function InventoryModule() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={product.product_type === 'virtual' ? "bg-purple-100/30 text-purple-700 border-purple-200" : product.product_type === 'service' ? "bg-blue-100/30 text-blue-700 border-blue-200" : "bg-slate-100/50 text-slate-700"}>
-                        {product.product_type}
+                      <Badge variant="outline" className={product.product_type === 'virtual' ? "bg-purple-100 text-purple-700 border-transparent shadow-sm" : product.product_type === 'service' ? "bg-blue-100 text-blue-700 border-transparent shadow-sm" : "bg-slate-100 text-slate-700 border-transparent shadow-sm"}>
+                        {product.product_type === 'physical' ? 'Físico' : product.product_type === 'virtual' ? 'Combo' : 'Servicio'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {product.product_type !== 'service' && <div className="text-xs text-muted-foreground">C: ${product.cost_usd.toFixed(2)}</div>}
-                      <div className="font-bold text-primary">V: ${product.price_usd.toFixed(2)}</div>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="font-black text-primary text-sm">${product.price_usd.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">Bs {(product.price_usd * exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-center">
                       {product.product_type === "service" ? <span className="text-xs text-muted-foreground">∞ Ilimitado</span> : <Badge className={isLowStock ? "bg-red-100 hover:bg-red-100 text-red-700 shadow-none border-red-200" : "bg-emerald-100 hover:bg-emerald-100 text-emerald-700 shadow-none border-emerald-200"}>{product.cached_stock_quantity} {product.unit_measure}</Badge>}
@@ -320,6 +468,9 @@ export function InventoryModule() {
               </span>
               {editingProduct ? "Edición de Producto" : "Registro de nuevo producto"}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Formulario para {editingProduct ? "editar" : "registrar"} un producto en el inventario.
+            </DialogDescription>
           </DialogHeader>
           
           <Form {...form}>
@@ -388,9 +539,9 @@ export function InventoryModule() {
                     <Select onValueChange={field.onChange} value={field.value} disabled={!!editingProduct}>
                       <FormControl><SelectTrigger className="bg-background"><SelectValue /></SelectTrigger></FormControl>
                       <SelectContent>
-                        <SelectItem value="physical">📦 Físico (Maneja Inventario)</SelectItem>
-                        <SelectItem value="service">🛠️ Servicio (Disponibilidad Infinita)</SelectItem>
-                        <SelectItem value="virtual">🍔 Combo / Receta (Agrupación)</SelectItem>
+                        <SelectItem value="physical">Físico</SelectItem>
+                        <SelectItem value="virtual">Combo</SelectItem>
+                        <SelectItem value="service">Servicio</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -493,12 +644,44 @@ export function InventoryModule() {
                   )} />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="wholesale_price_usd" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Precio Mayorista ($)</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                          <Input type="number" step="0.01" {...field} className="pl-7 bg-background" disabled={isService || isVirtual} />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="package_quantity" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unidades x Paquete</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="1" {...field} className="bg-background" disabled={isService} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
                 {!isService && (
-                  <div className="flex justify-between items-center bg-background/50 p-2 rounded-lg border border-dashed text-sm">
-                    <span className="text-muted-foreground">Margen Bruto Estimado:</span>
-                    <span className={`font-bold ${profitMargin > 30 ? 'text-emerald-600' : profitMargin > 0 ? 'text-amber-600' : 'text-red-500'}`}>
-                      {profitMargin.toFixed(1)}%
-                    </span>
+                  <div className="flex flex-col gap-2 bg-background/50 p-3 rounded-lg border border-dashed text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Margen Bruto (Detal):</span>
+                      <span className={`font-bold ${profitMargin > 30 ? 'text-emerald-600' : profitMargin > 0 ? 'text-amber-600' : 'text-red-500'}`}>
+                        {profitMargin.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center border-t pt-2">
+                      <span className="text-muted-foreground">Margen Bruto (Mayorista):</span>
+                      <span className={`font-bold ${wholesaleProfitMargin > 20 ? 'text-emerald-600' : wholesaleProfitMargin > 0 ? 'text-amber-600' : 'text-red-500'}`}>
+                        {wholesaleProfitMargin.toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -544,6 +727,67 @@ export function InventoryModule() {
           </Form>
         </DialogContent>
       </Dialog>
+      
+      <Dialog open={isExcelDialogOpen} onOpenChange={setIsExcelDialogOpen}>
+         <DialogContent className="sm:max-w-md shadow-2xl rounded-2xl border-0">
+            <DialogHeader className="p-6 bg-emerald-50 border-b border-emerald-100">
+                <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-800">
+                  <FileSpreadsheet className="h-6 w-6"/> Importación Excel
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Ventana modal para cargar archivos excel masivos de inventario.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 p-6 text-sm text-foreground">
+                <div className="space-y-3">
+                  <p className="font-semibold px-1">Paso 1: Usar Plantilla Validada</p>
+                  <p className="text-muted-foreground px-1 text-xs">Asegúrese de emplear la estructura correcta para que el sistema procese el lote de activos estrictamente.</p>
+                  <Button onClick={downloadExcelTemplate} variant="outline" className="w-full border-emerald-600/30 text-emerald-700 font-bold hover:bg-emerald-50/50 hover:text-emerald-800"><Download className="h-4 w-4 mr-2" /> Descargar Modelo Autorizado</Button>
+                </div>
+                
+                <div className="space-y-3">
+                  <p className="font-semibold px-1">Paso 2: Cargar Registro</p>
+                  <div className="border-2 border-dashed border-emerald-600/30 bg-emerald-50/20 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 hover:bg-emerald-50/40 transition-colors">
+                      <FileSpreadsheet className={`h-10 w-10 text-emerald-600/60 ${isImporting ? 'animate-bounce' : ''}`} />
+                      <Input disabled={isImporting} type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} className="max-w-xs border-emerald-200" />
+                      {isImporting && <p className="text-emerald-700 font-bold animate-pulse text-xs bg-emerald-100 px-3 py-1.5 rounded-full mt-2">Procesando y validando matriz masiva...</p>}
+                  </div>
+                </div>
+            </div>
+         </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!alertConfig} onOpenChange={(open) => !open && setAlertConfig(null)}>
+        <AlertDialogContent className="shadow-2xl border-0 border-t-4 border-t-red-500 rounded-2xl max-w-lg">
+          <AlertDialogHeader className="space-y-4">
+            <AlertDialogTitle className="flex items-center gap-3 text-2xl text-red-600 font-black">
+              <span className="bg-red-100 p-2 rounded-full"><AlertCircle className="w-8 h-8" /></span>
+              {alertConfig?.title}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-foreground font-medium flex flex-col gap-4">
+                <span className="block leading-relaxed">
+                  {alertConfig?.description}
+                </span>
+                
+                {alertConfig && alertConfig.errors.length > 0 && (
+                  <>
+                    <span className="text-sm font-bold text-red-600">Revise la siguiente tabla de errores ({alertConfig.errors.length}):</span>
+                    <div className="bg-red-50/50 p-4 rounded-xl max-h-[30vh] overflow-y-auto w-full font-mono text-xs border border-red-100">
+                       <ul className="list-disc pl-4 space-y-2 text-red-800">
+                          {alertConfig.errors.map((err, i) => <li key={i} className="font-semibold">{err}</li>)}
+                       </ul>
+                    </div>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white font-bold h-12 rounded-xl text-lg w-full">Entendido, lo corregiré</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -6,127 +6,197 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Search,
-  Package,
+  PackageSearch,
   Plus,
   Minus,
   Trash2,
   ShoppingBag,
   FileText,
+  Building2,
+  Box,
+  LayoutGrid
 } from "lucide-react"
 
-interface Product {
-  id: string
-  name: string
-  sku: string
-  category: string
-  costPrice: number
-  stock: number
-  image: string
+import { useProducts, Product } from "@/hooks/queries/use-inventory"
+import { useSuppliers, Supplier } from "@/hooks/queries/use-suppliers"
+import { useCreatePurchase } from "@/hooks/queries/use-purchases"
+import { useSystemStatus } from "@/hooks/queries/use-system"
+import { toast } from "sonner"
+import { GenericSelector } from "@/components/shared/generic-selector"
+import { cn } from "@/lib/utils"
+
+// Helper para parsear números locales (Ej: "1.000.500,50" -> 1000500.5)
+const parseLocalFloat = (val: string): number => {
+  if (!val) return 0;
+  const cleanStr = val.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  return parseFloat(cleanStr) || 0;
+}
+
+// Helper para blindar la vista local de números
+const formatLocalNumber = (num: number): string => {
+  return num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 interface PurchaseItem extends Product {
   quantity: number
+  lotsInput: string
+  costInputUSD: string // String crudo sin formatear agresivo para permitir escritura fluida
+  costInputBS: string
+  internalCostUSD: number // Número matemático real
 }
-
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Coca Cola 500ml",
-    sku: "BEB-001",
-    category: "Bebidas",
-    costPrice: 0.8,
-    stock: 45,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-  {
-    id: "2",
-    name: "Harina Pan Maíz Blanca 1kg",
-    sku: "HAR-001",
-    category: "Snacks",
-    costPrice: 0.7,
-    stock: 120,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-  {
-    id: "3",
-    name: "Lays Papas Clásicas 150g",
-    sku: "SNK-001",
-    category: "Snacks",
-    costPrice: 1.2,
-    stock: 85,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-  {
-    id: "4",
-    name: "Pan Bimbo Blanco Rebanado",
-    sku: "PAN-001",
-    category: "Comida",
-    costPrice: 2.0,
-    stock: 35,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-  {
-    id: "5",
-    name: "Leche Completa 1L",
-    sku: "LEC-001",
-    category: "Bebidas",
-    costPrice: 1.1,
-    stock: 22,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-  {
-    id: "6",
-    name: "Chocolate Savoy de Leche",
-    sku: "CHO-001",
-    category: "Varios",
-    costPrice: 0.5,
-    stock: 85,
-    image: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-SZZAM2gCDtex5d93pvlJOQNl11mdrK.png",
-  },
-]
-
-const categories = ["Todo", "Bebidas", "Snacks", "Comida", "Varios"]
 
 export function PurchasesModule() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("Todo")
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
   const [supplierName, setSupplierName] = useState("")
-  const exchangeRate = 37.0
 
-  const filteredProducts = mockProducts.filter((product) => {
+  const { data: dbProducts = [], isLoading: isLoadingProducts } = useProducts()
+  const { data: dbSuppliers = [], isLoading: isLoadingSuppliers } = useSuppliers()
+  const { data: config } = useSystemStatus()
+  const createPurchase = useCreatePurchase()
+
+  const exchangeRate = config?.current_exchange_rate_bs || 36.5
+
+  // Lista de proveedores con la opción genérica incluida por defecto
+  const suppliers = [
+    { 
+      id: "generic-1", 
+      name: "Proveedor Genérico Externo", 
+      category: "GENÉRICO", 
+      identification_type: "RIF", 
+      identification_number: "00000000", 
+      phone: "000-0000000",
+      is_active: true,
+      is_synced: false,
+      email: ""
+    } as Supplier,
+    ...dbSuppliers
+  ]
+
+  // En Compras/Recepción solo se muestran y procesan productos físicos reales.
+  const physicalProducts = dbProducts.filter(p => p.product_type === "physical")
+
+  const filteredProducts = physicalProducts.filter((product) => {
+    const term = searchTerm.toLowerCase()
     const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory =
-      selectedCategory === "Todo" || product.category === selectedCategory
-    return matchesSearch && matchesCategory
+      product.name.toLowerCase().includes(term) ||
+      product.sku.toLowerCase().includes(term) ||
+      (product.barcode || "").toLowerCase().includes(term) ||
+      (product.tags || "").split(',').some(tag => tag.trim().toLowerCase().includes(term))
+    
+    return matchesSearch
   })
 
   const addToPurchase = (product: Product) => {
+    const defaultQty = product.package_quantity || 1;
     const existingItem = purchaseItems.find((item) => item.id === product.id)
     if (existingItem) {
       setPurchaseItems(
-        purchaseItems.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        purchaseItems.map((item) => {
+          if (item.id === product.id) {
+             const newQty = item.quantity + defaultQty;
+             return { ...item, quantity: newQty, lotsInput: (newQty / defaultQty).toString() }
+          }
+          return item
+        }
         )
       )
     } else {
-      setPurchaseItems([...purchaseItems, { ...product, quantity: 1 }])
+      setPurchaseItems([...purchaseItems, { 
+        ...product, 
+        quantity: defaultQty,
+        lotsInput: "1",
+        costInputUSD: formatLocalNumber(product.cost_usd),
+        costInputBS: formatLocalNumber(product.cost_usd * exchangeRate),
+        internalCostUSD: product.cost_usd
+      }])
     }
   }
 
   const updateQuantity = (id: string, delta: number) => {
     setPurchaseItems(
       purchaseItems
-        .map((item) =>
-          item.id === id ? { ...item, quantity: item.quantity + delta } : item
-        )
+        .map((item) => {
+           if (item.id === id) {
+             const newQty = item.quantity + delta;
+             const pq = item.package_quantity || 1;
+             return { ...item, quantity: newQty, lotsInput: Number((newQty / pq).toFixed(2)).toString() }
+           }
+           return item
+        })
         .filter((item) => item.quantity > 0)
     )
+  }
+
+  const updateLots = (id: string, value: string) => {
+    setPurchaseItems(
+      purchaseItems.map(item => {
+        if (item.id === id) {
+           const pq = item.package_quantity || 1;
+           const numericLots = parseFloat(value) || 0;
+           return {
+             ...item,
+             lotsInput: value, // Mantener string para que pueda escribir decimal exacto si quiere
+             quantity: Math.max(0, Math.floor(numericLots * pq))
+           }
+        }
+        return item;
+      })
+    )
+  }
+
+  const updateCostUSD = (id: string, value: string) => {
+    const numericUSD = parseLocalFloat(value)
+    const numericBS = numericUSD * exchangeRate
+    
+    setPurchaseItems(
+      purchaseItems.map(item => 
+        item.id === id ? { 
+          ...item, 
+          costInputUSD: value, // Permite escritura alocada (e.g "1.000,")
+          costInputBS: formatLocalNumber(numericBS), // Autocalcula estricto el otro campo
+          internalCostUSD: numericUSD 
+        } : item
+      )
+    )
+  }
+
+  const updateCostBS = (id: string, value: string) => {
+    const numericBS = parseLocalFloat(value)
+    const numericUSD = numericBS / exchangeRate
+
+    setPurchaseItems(
+      purchaseItems.map(item => 
+        item.id === id ? { 
+          ...item, 
+          costInputBS: value, // Permite escritura fluida sin saltos restrictivos
+          costInputUSD: formatLocalNumber(numericUSD), 
+          internalCostUSD: numericUSD 
+        } : item
+      )
+    )
+  }
+
+  const handleBlur = (id: string, field: "USD" | "BS") => {
+    // Cuando el usuario sale del input, re-formateamos la celda para que quede limpia.
+    setPurchaseItems(items => items.map(item => {
+      if (item.id === id) {
+         if (field === "USD") {
+            return { ...item, costInputUSD: formatLocalNumber(item.internalCostUSD) }
+         } else {
+            return { ...item, costInputBS: formatLocalNumber(item.internalCostUSD * exchangeRate) }
+         }
+      }
+      return item;
+    }))
   }
 
   const removeItem = (id: string) => {
@@ -134,198 +204,287 @@ export function PurchasesModule() {
   }
 
   const subtotal = purchaseItems.reduce(
-    (sum, item) => sum + item.costPrice * item.quantity,
+    (sum, item) => sum + item.internalCostUSD * item.quantity,
     0
   )
   const totalBs = subtotal * exchangeRate
 
-  const handleRegisterPurchase = () => {
+  const handleRegisterPurchase = async () => {
     if (purchaseItems.length === 0) {
-      alert("Agregue productos a la compra")
+      toast.error("Agregue al menos un producto a la orden")
       return
     }
     if (!supplierName.trim()) {
-      alert("Ingrese el nombre del proveedor")
+      toast.error("Seleccione o ingrese un proveedor válido")
       return
     }
-    alert(`Compra registrada exitosamente\nProveedor: ${supplierName}\nTotal: $${subtotal.toFixed(2)}`)
-    setPurchaseItems([])
-    setSupplierName("")
+
+    try {
+      await createPurchase.mutateAsync({
+        supplier_name: supplierName,
+        total_amount_usd: subtotal,
+        total_amount_bs: totalBs,
+        items: purchaseItems.map(item => ({
+          product_id: item.id!,
+          quantity: item.quantity,
+          unit_cost_usd: item.internalCostUSD,
+          total_cost_usd: item.internalCostUSD * item.quantity
+        }))
+      })
+
+      toast.success("Compra procesada y costos actualizados exitosamente.")
+      setPurchaseItems([])
+      setSupplierName("")
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || "Error al procesar recepción de inventario")
+    }
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-background/50">
-      {/* Left Panel - Products */}
-      <div className="flex flex-1 flex-col overflow-hidden border-r border-border">
-        {/* Search Bar */}
-        <div className="border-b border-border bg-card/50 p-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+    <div className="flex h-full w-full overflow-hidden bg-background font-sans text-sm">
+      {/* Panel Izquierdo - Catálogo Minimalista */}
+      <div className="flex flex-1 flex-col overflow-hidden bg-secondary/10">
+        
+        {/* Búsqueda y Filtros Compactos */}
+        <div className="bg-background border-b-2 border-border/80 p-3 shrink-0 flex items-center justify-between gap-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] z-10 w-full relative">
+          <div className="relative w-full max-w-md shrink-0">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar producto, código de barra o SKU..."
+              placeholder="Buscar (código, SKU, nombre)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-14 rounded-xl border-primary/30 pl-12 text-base focus:border-primary focus:ring-primary"
+              className="h-9 rounded-md border-2 border-border/60 bg-muted/40 pl-9 text-xs focus-visible:ring-primary/40 shadow-none transition-colors hover:bg-muted/60"
+            />
+          </div>
+          
+        </div>
+
+        {/* Grilla de Productos */}
+        <div className="flex-1 overflow-y-auto p-3 no-scrollbar pb-10">
+          {isLoadingProducts ? (
+            <div className="flex items-center justify-center h-full opacity-50">
+               <div className="animate-pulse flex flex-col items-center gap-2">
+                  <Box className="w-8 h-8 text-primary" />
+                  <p className="text-xs font-semibold text-muted-foreground tracking-wide">Sincronizando maestro...</p>
+               </div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 opacity-40">
+              <PackageSearch className="h-8 w-8 text-muted-foreground" />
+              <p className="text-xs font-semibold tracking-wide">Búsqueda sin resultados</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-2">
+              {filteredProducts.map((product) => (
+                <Card
+                  key={product.id}
+                  onClick={() => addToPurchase(product)}
+                  className="group relative cursor-pointer border-2 border-border/60 bg-background overflow-hidden rounded-lg hover:shadow-md hover:border-primary/50 flex flex-col h-[130px] transition-all"
+                >
+                  <div className="absolute top-1 left-1 z-10">
+                    <span className="px-1.5 py-0.5 text-[9px] font-bold font-mono tracking-tighter bg-foreground/90 text-background rounded shadow-sm border border-foreground/50">
+                      STK: {product.cached_stock_quantity}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 bg-muted/10 w-full flex items-center justify-center relative border-b border-border/40">
+                     <PackageSearch className="h-6 w-6 text-muted-foreground/30 group-hover:scale-125 transition-transform duration-200" />
+                     <div className="absolute bottom-1 right-1 bg-primary text-primary-foreground text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                        ${product.cost_usd.toFixed(2)}
+                     </div>
+                  </div>
+
+                  <CardContent className="p-2 shrink-0">
+                     <h3 className="line-clamp-2 text-[10px] font-bold text-foreground leading-tight group-hover:text-primary">
+                        {product.name}
+                     </h3>
+                     <p className="text-[9px] text-muted-foreground font-mono mt-0.5 truncate uppercase">
+                        {product.sku}
+                     </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Panel Derecho - Recepción Detallada */}
+      <div className="flex w-[550px] xl:w-[600px] flex-col bg-card border-l-[3px] border-border shadow-2xl z-20 shrink-0">
+        
+        {/* Cabecera Proveedor */}
+        <div className="p-3 border-b-2 border-border/70 bg-secondary/15 shrink-0">
+          <div className="flex justify-between items-center mb-2">
+             <h2 className="text-sm font-black text-foreground flex items-center gap-1.5 uppercase tracking-tight">
+               <ShoppingBag className="w-4 h-4 text-primary" /> Entrada de Lote
+             </h2>
+             <span className="text-[10px] text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                Ref: {new Date().toLocaleDateString("es-VE").replace(/\//g, '')}
+             </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <GenericSelector
+              title="Seleccionar Proveedor"
+              description="Directorio Maestro de Proveedores de Xion POS"
+              placeholder="Buscar por nombre, RIF o categoría..."
+              items={suppliers}
+              isLoading={isLoadingSuppliers}
+              selectedValue={supplierName}
+              onSelect={(s) => setSupplierName(s.name)}
+              getItemValue={(s) => s.name}
+              emptyMessage="No se encontró el proveedor."
+              trigger={
+                <Button 
+                  variant="outline" 
+                  className={cn(
+                    "h-9 text-xs font-bold rounded-md bg-background border-2 border-border/60 shadow-sm flex-1 justify-start px-2.5 transition-all",
+                    "hover:border-primary/50 hover:bg-secondary/10",
+                    supplierName ? "text-foreground" : "text-muted-foreground/60"
+                  )}
+                >
+                  <Building2 className="w-4 h-4 mr-2 text-primary shrink-0" />
+                  <span className="truncate">{supplierName || "Seleccionar Proveedor u Origen..."}</span>
+                </Button>
+              }
+              renderItem={(s) => (
+                <div className="flex flex-col gap-0.5">
+                   <div className="flex items-center justify-between">
+                      <span className="font-black text-sm tracking-tight text-foreground">{s.name}</span>
+                      <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0 h-4">{s.category}</Badge>
+                   </div>
+                   <div className="flex items-center gap-3 text-muted-foreground font-mono text-[10px]">
+                      <span>{s.identification_type}: {s.identification_number}</span>
+                      <span className="opacity-50">•</span>
+                      <span>{s.phone}</span>
+                   </div>
+                </div>
+              )}
             />
           </div>
         </div>
 
-        {/* Category Filters */}
-        <div className="flex gap-3 border-b border-border bg-card/30 px-6 py-4">
-          {categories.map((category) => (
-            <Button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              variant={selectedCategory === category ? "default" : "outline"}
-              className={`rounded-xl ${
-                selectedCategory === category
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "border-border/50 bg-transparent hover:bg-accent/50"
-              }`}
-            >
-              {category}
-            </Button>
-          ))}
-        </div>
-
-        {/* Products Grid */}
-        <div className="flex-1 overflow-auto p-6">
-          <div className="grid grid-cols-2 gap-6 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <Card
-                key={product.id}
-                className="group cursor-pointer border-border/50 shadow-md transition-all hover:border-primary/50 hover:shadow-lg"
-                onClick={() => addToPurchase(product)}
-              >
-                <CardContent className="flex flex-col gap-3 p-4">
-                  <div className="relative aspect-square overflow-hidden rounded-lg bg-gradient-to-br from-muted to-accent">
-                    <div className="flex h-full items-center justify-center">
-                      <Package className="h-16 w-16 text-primary/30" />
-                    </div>
-                    <Badge className="absolute right-2 top-2 bg-foreground/80 text-background">
-                      Stock: {product.stock}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h3 className="line-clamp-2 text-sm font-semibold text-foreground">
-                      {product.name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">{product.sku}</p>
-                  </div>
-
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-xl font-bold text-foreground">
-                      ${product.costPrice.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Bs {(product.costPrice * exchangeRate).toFixed(2)}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Right Panel - Purchase Order */}
-      <div className="flex w-[420px] flex-col bg-card/80">
-        {/* Header */}
-        <div className="border-b border-border p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <ShoppingBag className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-foreground">
-                Orden de Compra
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                {new Date().toLocaleDateString("es-VE", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-          </div>
-
-          <Input
-            placeholder="Nombre del proveedor..."
-            value={supplierName}
-            onChange={(e) => setSupplierName(e.target.value)}
-            className="h-12 rounded-xl border-primary/30"
-          />
-        </div>
-
-        {/* Items List */}
-        <div className="flex-1 overflow-auto p-6">
+        {/* Cesta de Compras */}
+        <div className="flex-1 overflow-y-auto p-2 bg-background">
           {purchaseItems.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <FileText className="h-16 w-16 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                No hay productos en la orden
-              </p>
-            </div>
+             <div className="flex h-full flex-col items-center justify-center gap-2 opacity-30">
+                <FileText className="w-10 h-10" />
+                <p className="text-[11px] font-bold text-center px-8 uppercase tracking-wide">
+                  Pulse en los ítems para construir el lote
+                </p>
+             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-border pb-2">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
-                  Producto
-                </span>
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
-                  Total
-                </span>
-              </div>
+            <div className="space-y-1.5">
+               <div className="flex gap-1.5 px-2 py-1 text-[9px] font-black text-muted-foreground uppercase tracking-widest border-b-2 border-border/40">
+                   <div className="flex-1">Producto</div>
+                   <div className="w-14 text-center shrink-0 text-[8px]">Lots</div>
+                   <div className="w-20 text-center shrink-0">Cant.</div>
+                   <div className="w-24 text-right shrink-0">Costo ($)</div>
+                   <div className="w-24 text-right shrink-0">Costo (Bs)</div>
+                   <div className="w-16 text-right shrink-0">Sub. ($)</div>
+                   <div className="w-6 shrink-0"></div>
+               </div>
 
               {purchaseItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-3 rounded-lg border border-border/50 bg-background/50 p-3"
+                  className="group flex flex-col bg-card border-2 border-border/50 hover:border-primary/50 hover:shadow-sm rounded-md overflow-visible transition-colors"
                 >
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-foreground">
-                      {item.name}
-                    </h4>
-                    <p className="text-xs text-muted-foreground">
-                      ${item.costPrice.toFixed(2)} / un
-                    </p>
-                  </div>
+                  <div className="flex items-center gap-2 p-1.5">
+                     {/* Info Básica */}
+                     <div className="flex-1 min-w-0 pr-1 select-none">
+                        <h4 className="text-[11px] font-bold text-foreground leading-tight truncate">
+                           {item.name}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                           <span className="text-[9px] text-muted-foreground font-mono bg-muted/50 px-1 py-px rounded truncate">
+                              {item.sku}
+                           </span>
+                           <span className="text-[9px] text-primary/70 font-medium whitespace-nowrap">Ant: ${item.cost_usd.toFixed(2)}</span>
+                        </div>
+                     </div>
+                     
+                     {/* Lotes Input */}
+                     <div className="flex items-center justify-center shrink-0 w-14 pr-1">
+                          <div className="relative flex items-center w-full">
+                            <span className="absolute left-1 text-[8px] text-muted-foreground font-black pointer-events-none">Lx</span>
+                            <Input 
+                              type="text" 
+                              value={item.lotsInput} 
+                              onChange={(e) => updateLots(item.id!, e.target.value)}
+                              className="w-full text-center text-[10px] font-black font-mono pl-3 pr-1 py-0 h-6 bg-muted/20 border-2 border-border/50 focus-visible:ring-1 focus-visible:border-primary transition-all"
+                            />
+                         </div>
+                     </div>
 
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-7 w-7 rounded-lg"
-                        onClick={() => updateQuantity(item.id, -1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-8 text-center text-sm font-bold">
-                        {item.quantity}
-                      </span>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-7 w-7 rounded-lg"
-                        onClick={() => updateQuantity(item.id, 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                        onClick={() => removeItem(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-base font-bold text-foreground">
-                      ${(item.costPrice * item.quantity).toFixed(2)}
-                    </p>
+                     {/* Cantidad Input Editable */}
+                     <div className="flex items-center justify-center shrink-0 w-20">
+                         <div className="flex w-full overflow-hidden rounded bg-muted/20 border-2 border-border/50 text-foreground transition-all hover:border-border/80 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+                            <button onClick={() => updateQuantity(item.id!, -1)} className="w-5 flex items-center justify-center hover:bg-muted font-bold transition-colors">
+                               -
+                            </button>
+                            <Input 
+                              type="text" 
+                              value={item.quantity === 0 ? "" : item.quantity} 
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                                const parsedQty = isNaN(val) ? 0 : val;
+                                setPurchaseItems(purchaseItems.map(i => i.id === item.id ? { 
+                                   ...i, 
+                                   quantity: parsedQty,
+                                   lotsInput: Number((parsedQty / (i.package_quantity || 1)).toFixed(2)).toString()
+                                } : i))
+                              }}
+                              onBlur={() => setPurchaseItems(items => items.filter(i => i.quantity > 0))}
+                              className="flex-1 text-center text-[11px] font-black font-mono border-x-2 border-y-0 border-border/50 p-0 h-6 bg-background rounded-none shadow-none focus-visible:ring-0 focus-visible:outline-none"
+                            />
+                            <button onClick={() => updateQuantity(item.id!, 1)} className="w-5 flex items-center justify-center hover:bg-muted font-bold transition-colors">
+                               +
+                            </button>
+                         </div>
+                     </div>
+
+                     {/* Modificar Costo USD (Ampliado) */}
+                     <div className="w-24 shrink-0 px-1">
+                         <div className="relative flex items-center">
+                            <span className="absolute left-1.5 text-[10px] text-muted-foreground font-black pointer-events-none">$</span>
+                            <Input 
+                              type="text" 
+                              value={item.costInputUSD || ""} 
+                              onChange={(e) => updateCostUSD(item.id!, e.target.value)}
+                              onBlur={() => handleBlur(item.id!, "USD")}
+                              className="h-7 text-[11px] font-black font-mono text-right pl-4 pr-1.5 py-0 rounded bg-background border-2 border-border/60 shadow-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary transition-all"
+                            />
+                         </div>
+                     </div>
+
+                     {/* Modificar Costo BS (Ampliado) */}
+                     <div className="w-24 shrink-0">
+                         <div className="relative flex items-center">
+                            <span className="absolute left-1 text-[10px] text-emerald-600/70 font-black pointer-events-none">Bs</span>
+                            <Input 
+                              type="text" 
+                              value={item.costInputBS || ""} 
+                              onChange={(e) => updateCostBS(item.id!, e.target.value)}
+                              onBlur={() => handleBlur(item.id!, "BS")}
+                              className="h-7 text-[11px] font-black font-mono text-right pl-5 pr-1.5 py-0 rounded bg-emerald-50/50 border-2 border-emerald-200/80 shadow-none focus-visible:ring-1 focus-visible:ring-emerald-400 focus-visible:border-emerald-400 transition-all text-emerald-950"
+                            />
+                         </div>
+                     </div>
+                     
+                     {/* Total por item */}
+                     <div className="w-16 text-right shrink-0">
+                        <p className="text-[12px] font-black text-foreground tracking-tight font-mono whitespace-nowrap">
+                           ${(item.internalCostUSD * item.quantity).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                     </div>
+
+                     {/* Botón Borrar */}
+                     <div className="w-6 flex justify-end shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 bg-transparent hover:bg-destructive hover:text-white rounded" onClick={() => removeItem(item.id!)}>
+                           <Trash2 className="h-3 w-3" />
+                        </Button>
+                     </div>
                   </div>
                 </div>
               ))}
@@ -333,38 +492,22 @@ export function PurchasesModule() {
           )}
         </div>
 
-        {/* Footer - Totals */}
-        <div className="space-y-4 border-t border-border bg-card p-6">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-semibold text-foreground">
-                ${subtotal.toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-2 border-t border-border pt-4">
-            <div className="flex justify-between">
-              <span className="text-lg font-bold text-foreground">TOTAL</span>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-primary">
-                  ${subtotal.toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Bs {totalBs.toFixed(2)}
-                </p>
-              </div>
-            </div>
+        {/* Zona Inferior: Action Call */}
+        <div className="p-3 border-t-2 border-border/80 bg-secondary/10 shrink-0 shadow-inner">
+          <div className="flex justify-between items-end mb-3">
+             <div className="space-y-0 text-left">
+                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Inversión Lote</p>
+                 <p className="text-[12px] text-muted-foreground font-mono font-semibold">Bs {totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+             </div>
+             <p className="text-3xl font-black text-primary tracking-tighter leading-none tabular-nums">${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
 
           <Button
             onClick={handleRegisterPurchase}
-            disabled={purchaseItems.length === 0 || !supplierName.trim()}
-            className="h-14 w-full rounded-xl bg-primary text-base font-semibold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-50"
+            disabled={purchaseItems.length === 0 || !supplierName.trim() || createPurchase.isPending}
+            className="w-full h-10 rounded-md bg-primary text-xs font-black uppercase tracking-wider shadow-sm transition-all disabled:opacity-50"
           >
-            <ShoppingBag className="mr-2 h-5 w-5" />
-            Registrar Compra
+            {createPurchase.isPending ? "Validando Transacción..." : "Liquidar Recepción de Ingreso"}
           </Button>
         </div>
       </div>

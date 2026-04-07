@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSystemStatus } from "@/hooks/queries/use-system"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -18,11 +19,11 @@ interface DashboardContentProps {
   onCloseCaja: () => void
 }
 
-const paymentMethods = [
-  { icon: Banknote, label: "Efectivo", usd: 1250.0, bs: 46250.0, color: "text-emerald-600" },
-  { icon: CreditCard, label: "Tarjeta", usd: 890.5, bs: 32948.5, color: "text-primary" },
-  { icon: ArrowRightLeft, label: "Transferencia", usd: 450.0, bs: 16650.0, color: "text-amber-600" },
-  { icon: Smartphone, label: "Pago Movil", usd: 320.75, bs: 11867.75, color: "text-cyan-600" },
+const paymentMethodsMock = [
+  { icon: Banknote, label: "Efectivo", usd: 1250.0, color: "text-emerald-600" },
+  { icon: CreditCard, label: "Tarjeta", usd: 890.5, color: "text-primary" },
+  { icon: ArrowRightLeft, label: "Transferencia", usd: 450.0, color: "text-amber-600" },
+  { icon: Smartphone, label: "Pago Movil", usd: 320.75, color: "text-cyan-600" },
 ]
 
 export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
@@ -33,6 +34,14 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const { data: config } = useSystemStatus()
+  const exchangeRate = config?.current_exchange_rate_bs || 36.5
+
+  const paymentMethods = paymentMethodsMock.map((method) => ({
+    ...method,
+    bs: method.usd * exchangeRate
+  }))
 
   const totalUsd = paymentMethods.reduce((acc, m) => acc + m.usd, 0)
   const totalBs = paymentMethods.reduce((acc, m) => acc + m.bs, 0)

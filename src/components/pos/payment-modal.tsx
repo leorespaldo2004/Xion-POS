@@ -26,7 +26,7 @@ import { useState } from "react"
 interface PaymentModalProps {
   open: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: (method: string) => void
   totalAmount: number
   totalAmountBs: number
 }
@@ -210,7 +210,11 @@ export function PaymentModal({
             Cancelar
           </Button>
           <Button
-            onClick={onConfirm}
+            onClick={() => {
+              const primaryMethod = Object.keys(payments).length > 0 ? Object.keys(payments)[0] : "cash"
+              const mapped = primaryMethod.includes("efectivo") ? "cash" : primaryMethod.includes("debito") || primaryMethod.includes("credito") ? "card" : primaryMethod.includes("transferencia") ? "transfer" : "mobile_pay"
+              onConfirm(Object.keys(payments).length > 1 ? "mixed" : mapped)
+            }}
             disabled={!isComplete && !hasOverpayment}
             className="bg-emerald-600 px-8 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >

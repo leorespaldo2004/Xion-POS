@@ -10,6 +10,8 @@ from local_backend.api.routers.inventory import router as inventory_router
 from local_backend.api.routers.clients import router as clients_router
 from local_backend.api.routers.users import router as users_router
 from local_backend.api.routers.suppliers import router as suppliers_router
+from local_backend.api.routers.purchases import router as purchases_router
+from local_backend.api.routers.sales import router as sales_router
 
 from contextlib import asynccontextmanager
 
@@ -46,6 +48,8 @@ app.include_router(inventory_router, prefix="/api/v1")
 app.include_router(clients_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(suppliers_router, prefix="/api/v1")
+app.include_router(purchases_router, prefix="/api/v1")
+app.include_router(sales_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

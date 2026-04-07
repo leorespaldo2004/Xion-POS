@@ -2,7 +2,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProductFormValues, productSchema } from "@/schemas/inventory";
-import { apiClient } from "@/lib/api-client"; // Instancia preconfigurada de Axios
+import { localApiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Button, Input, Checkbox, Select } from "@/components/ui"; // Asume exportaciones limpias
 import { Plus, Trash2 } from "lucide-react";
@@ -17,6 +17,8 @@ export function ProductForm({ onSuccess }: { onSuccess?: () => void }) {
       hasVat: false,
       priceUsd: 0,
       costUsd: 0,
+      wholesalePriceUsd: 0,
+      packageQuantity: 1,
       comboItems: [],
     },
   });
@@ -30,23 +32,46 @@ export function ProductForm({ onSuccess }: { onSuccess?: () => void }) {
 
   // Mutación Offline-First: Dispara al backend local
   const createProduct = useMutation({
-    mutationFn: async (data: ProductFormValues) => {
-      const response = await apiClient.post("/api/v1/inventory/products", data);
+    mutationFn: async (payload: any) => {
+      const response = await localApiClient.post("/inventory/products", payload);
       return response.data;
     },
     onSuccess: () => {
       toast.success("Producto creado con éxito (Local)");
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       form.reset();
       if (onSuccess) onSuccess();
     },
     onError: (error: any) => {
-      toast.error(`Error de guardado: ${error.message}`);
+      const detail = error.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail.map((d: any) => `${d.loc.slice(-1)[0]}: ${d.msg}`).join(', ') : (detail || error.message);
+      toast.error(`Error de creación: ${msg}`);
     },
   });
 
   const onSubmit = (data: ProductFormValues) => {
-    createProduct.mutate(data);
+    // Generate SKU if not barcode exists and map camelCase to snake_case
+    const generatedSku = data.barcode || `${data.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+    
+    const payload = {
+      sku: generatedSku,
+      name: data.name,
+      barcode: data.barcode || null,
+      price_usd: data.priceUsd,
+      cost_usd: data.costUsd,
+      wholesale_price_usd: data.wholesalePriceUsd,
+      package_quantity: data.packageQuantity,
+      product_type: data.type,
+      tax_type: data.hasVat ? "vat" : "none",
+      unit_measure: "UND",
+      min_stock_alert: data.minStock || 0,
+      combo_items: data.comboItems.map(i => ({
+        product_id: i.productId,
+        quantity: i.quantity
+      }))
+    };
+
+    createProduct.mutate(payload);
   };
 
   return (
@@ -71,6 +96,15 @@ export function ProductForm({ onSuccess }: { onSuccess?: () => void }) {
         <div>
           <label className="text-sm font-medium">Sale Price (USD)</label>
           <Input type="number" step="0.01" {...form.register("priceUsd", { valueAsNumber: true })} />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Wholesale Price (USD)</label>
+          <Input type="number" step="0.01" {...form.register("wholesalePriceUsd", { valueAsNumber: true })} />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Units per Package (e.g. 6, 12, 24)</label>
+          <Input type="number" step="1" {...form.register("packageQuantity", { valueAsNumber: true })} />
+          {form.formState.errors.packageQuantity && <span className="text-red-500 text-xs">{form.formState.errors.packageQuantity.message}</span>}
         </div>
       </div>
 
