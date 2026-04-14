@@ -37,6 +37,7 @@ class SystemConfigUpdate(BaseModel):
     animations: bool | None = None
     high_contrast: bool | None = None
     interface_density: str | None = None
+    payment_methods_json: str | None = None
 
 class ExchangeRateUpdate(BaseModel):
     anchor_currency: str
@@ -74,6 +75,7 @@ def get_system_status(session: Session = Depends(get_session)) -> Dict[str, Any]
             "animations": config.animations,
             "high_contrast": config.high_contrast,
             "interface_density": config.interface_density,
+            "payment_methods_json": config.payment_methods_json,
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(exc)}")

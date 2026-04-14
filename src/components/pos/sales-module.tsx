@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 import {
   Search,
   Minus,
@@ -141,6 +142,15 @@ export function SalesModule() {
   const enableTaxes = config?.enable_taxes ?? true
   const taxRatePercent = config?.tax_rate ?? 16.0
   const exchangeRate = config?.current_exchange_rate_bs || 36.5
+  const wholesaleEnabled = config?.wholesale_enabled ?? true
+  const wholesaleMinQty = config?.wholesale_min_qty ?? 10
+
+  const getItemActivePrice = (item: CartItem | Product, quantity: number = 1): number => {
+    if (wholesaleEnabled && quantity >= wholesaleMinQty && item.wholesale_price_usd > 0) {
+      return item.wholesale_price_usd;
+    }
+    return item.price_usd;
+  }
 
   const filteredProducts = dbProducts.filter((product) => {
     const term = searchQuery.toLowerCase()
@@ -183,7 +193,7 @@ export function SalesModule() {
     )
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price_usd * item.cart_quantity, 0)
+  const subtotal = cart.reduce((sum, item) => sum + getItemActivePrice(item, item.cart_quantity) * item.cart_quantity, 0)
   const tax = enableTaxes ? subtotal * (taxRatePercent / 100) : 0
   const total = subtotal + tax
   const totalBs = total * exchangeRate
@@ -265,81 +275,68 @@ export function SalesModule() {
       {/* Right side - Ticket/Cart */}
       <Card className="w-[420px] border-border/50 shadow-xl">
         <CardContent className="flex h-full flex-col gap-4 p-6">
-          {/* Ticket header */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-foreground">
+          {/* Ticket header - Super Compact */}
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex flex-col">
+              <h2 className="text-lg font-black text-foreground leading-none">
                 Ticket #{ticketNumber}
               </h2>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowHoldModal(true)} className="h-9 relative border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-700 transition-colors shadow-none font-bold">
-                  <PauseCircle className="h-4 w-4 mr-1.5" />
-                  En Espera
-                  {heldSales.length > 0 && (
-                     <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-amber-500 hover:bg-amber-600 shadow-sm border-2 border-background animate-in zoom-in">
-                       {heldSales.length}
-                     </Badge>
-                  )}
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10" onClick={handleHoldSale} title="Aparcar Venta (Pausar)">
-                  <Archive className="h-4 w-4" />
-                </Button>
-              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {currentDate} - {currentTime}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Fecha: {currentDate} {currentTime}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => setShowHoldModal(true)} className="h-7 text-[10px] relative border-amber-500/30 bg-amber-500/5 text-amber-700 font-black px-2 py-0">
+                <PauseCircle className="h-3 w-3 mr-1" />
+                ESPERA
+                {heldSales.length > 0 && (
+                   <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full p-0 flex items-center justify-center bg-amber-500 text-[8px] border border-background">
+                     {heldSales.length}
+                   </Badge>
+                )}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-amber-500/10" onClick={handleHoldSale}>
+                <Archive className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
 
-          {/* Client info */}
-          <div className="flex flex-col gap-1">
-            <div className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 transition-all outline-none focus-within:ring-2 focus-within:ring-primary/20 ${selectedClient ? 'bg-emerald-50/50 border-emerald-500/30' : 'border-border/50 bg-muted/30'}`}>
-              {selectedClient ? <Lock className="h-4 w-4 text-emerald-600 shrink-0" /> : <User className="h-4 w-4 text-muted-foreground shrink-0" />}
-              <Input
-                placeholder="Cédula/RIF y presione Enter..."
-                value={clientIdentifier}
-                onChange={(e) => {
-                   setClientIdentifier(e.target.value)
-                   if(selectedClient) setSelectedClient(null)
-                }}
-                onKeyDown={handleClientSearch}
-                readOnly={!!selectedClient}
-                autoComplete="off"
-                className={`h-8 border-0 bg-transparent px-2 text-sm focus-visible:ring-0 w-full ${selectedClient ? 'text-emerald-800 font-bold' : ''}`}
-              />
-              {selectedClient && (
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 shrink-0" onClick={() => { setSelectedClient(null); setClientIdentifier("") }}>
-                  <Unlock className="h-3.5 w-3.5" />
-                </Button>
+          {/* Client info - Compact */}
+          <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-2 py-0.5 focus-within:ring-1 focus-within:ring-primary/30 mt-1">
+            {selectedClient ? <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> : <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+            <Input
+              placeholder="Cédula/RIF..."
+              value={clientIdentifier}
+              onChange={(e) => {
+                 setClientIdentifier(e.target.value)
+                 if(selectedClient) setSelectedClient(null)
+              }}
+              onKeyDown={handleClientSearch}
+              readOnly={!!selectedClient}
+              className={`h-7 border-0 bg-transparent px-1 text-[12px] focus-visible:ring-0 w-full ${selectedClient ? 'text-emerald-800 font-black' : ''}`}
+            />
+            {selectedClient && (
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-emerald-700 hover:bg-emerald-100" onClick={() => { setSelectedClient(null); setClientIdentifier("") }}>
+                <Unlock className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+            
+          {selectedClient && (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[11px] font-black text-emerald-700 truncate">{selectedClient.name}</p>
+              {selectedClient.current_debt > 0 && (
+                <Badge variant="destructive" className="h-4 text-[8px] px-1 font-black">DEUDA: ${formatLocalNumber(selectedClient.current_debt)}</Badge>
               )}
             </div>
-            
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${selectedClient ? 'max-h-12 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-               {selectedClient && (
-                 <div className="px-2 pb-1 flex items-center justify-between">
-                    <div>
-                      <p className="text-[13px] font-black text-emerald-700 leading-tight">
-                        {selectedClient.name}
-                      </p>
-                      <p className="text-[9px] uppercase font-bold tracking-widest text-emerald-600/70 mt-0.5">
-                        {selectedClient.email || 'CLIENTE REGISTRADO'}
-                      </p>
-                    </div>
-                    {selectedClient.current_debt > 0 && (
-                      <Badge variant="destructive" className="text-[9px] font-bold">Deuda: ${formatLocalNumber(selectedClient.current_debt)}</Badge>
-                    )}
-                 </div>
-               )}
-            </div>
-          </div>
-
+          )}
           <Separator />
 
-          {/* Cart items */}
-          <div className="flex-1 overflow-y-auto p-2 bg-background">
+          {/* Cart items - Maximize Area */}
+          <div className="h-[520px] overflow-y-auto p-1 bg-background border-y-2 border-border/40">
             {cart.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 opacity-30">
-                <Receipt className="h-10 w-10" />
+                <Receipt className="h-9 w-10" />
                 <p className="text-[11px] font-bold text-center px-8 uppercase tracking-wide">
                   No hay productos en el carrito
                 </p>
@@ -353,7 +350,11 @@ export function SalesModule() {
                   <div className="w-6 shrink-0"></div>
                 </div>
 
-                {cart.map((item) => (
+                {cart.map((item) => {
+                  const activePrice = getItemActivePrice(item, item.cart_quantity)
+                  const isWholesale = wholesaleEnabled && item.cart_quantity >= wholesaleMinQty && item.wholesale_price_usd > 0
+                  
+                  return (
                   <div
                     key={item.id}
                     className="group flex flex-col bg-card border-2 border-border/50 hover:border-primary/50 hover:shadow-sm rounded-md overflow-visible transition-colors"
@@ -368,7 +369,9 @@ export function SalesModule() {
                            <span className="text-[9px] text-muted-foreground font-mono bg-muted/50 px-1 py-px rounded truncate">
                               {item.sku}
                            </span>
-                           <span className="text-[9px] text-primary/70 font-medium whitespace-nowrap">${formatLocalNumber(item.price_usd)}/u</span>
+                           <span className={cn("text-[9px] font-medium whitespace-nowrap", isWholesale ? "text-amber-600" : "text-primary/70")}>
+                              ${formatLocalNumber(activePrice)}/u {isWholesale && <span className="font-bold text-[8px] uppercase border border-amber-600/30 px-0.5 rounded bg-amber-600/10 ml-0.5" title="Precio Mayorista Activo">MAY</span>}
+                           </span>
                         </div>
                       </div>
 
@@ -397,7 +400,7 @@ export function SalesModule() {
 
                       <div className="w-16 text-right shrink-0">
                         <p className="text-[12px] font-black text-foreground tracking-tight font-mono whitespace-nowrap">
-                           ${formatLocalNumber(item.price_usd * item.cart_quantity)}
+                           ${formatLocalNumber(activePrice * item.cart_quantity)}
                         </p>
                       </div>
 
@@ -409,67 +412,56 @@ export function SalesModule() {
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
 
           <Separator />
 
-          {/* Totals */}
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span className="font-medium">${formatLocalNumber(subtotal)}</span>
+          {/* Totals Section Compact */}
+          <div className="space-y-1 py-1">
+            <div className="flex justify-between text-[11px] text-muted-foreground font-black">
+              <span>SUBTOTAL</span>
+              <span>${formatLocalNumber(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>{enableTaxes ? `IVA (${taxRatePercent}%)` : `IVA (Exento/No Aplicable)`}</span>
-              <span className="font-medium">${formatLocalNumber(tax)}</span>
+            <div className="flex justify-between text-[11px] text-muted-foreground font-black">
+              <span>IVA ({taxRatePercent}%)</span>
+              <span>${formatLocalNumber(tax)}</span>
             </div>
-            <Separator />
-            <div className="flex items-start justify-between">
-              <span className="text-base font-bold text-foreground mt-1">TOTAL</span>
-              <div className="text-right">
-                <p className="text-3xl font-black text-emerald-600 leading-none">
+            <div className="flex items-end justify-between pt-1">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-foreground tracking-tighter leading-none">TOTAL USD</span>
+                <p className="text-3xl font-black text-emerald-600 leading-none mt-1">
                   ${formatLocalNumber(total)}
                 </p>
-                <div className="mt-2 inline-flex flex-col items-end">
-                   <p className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-0.5 opacity-70">Total en Bolívares</p>
-                   <p className="text-lg font-black text-foreground bg-secondary/30 px-3 py-1 rounded-md border-2 border-border/10">
-                    <span className="text-[10px] mr-1 opacity-60">Bs</span> 
-                    {formatLocalNumber(totalBs)}
-                   </p>
-                </div>
+              </div>
+              <div className="text-right flex flex-col items-end">
+                <p className="text-[9px] font-black text-muted-foreground tracking-tighter opacity-70 mb-1">MONEDA LOCAL</p>
+                <p className="text-base font-black text-foreground bg-secondary/30 px-2.5 py-0.5 rounded border-2 border-border/10">
+                  <span className="text-[10px] mr-1 opacity-60">BS</span> 
+                  {formatLocalNumber(totalBs)}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              className="h-12 gap-2 rounded-xl border-2 font-medium"
-            >
-              <Percent className="h-4 w-4" />
-              F3 Descuento
+          {/* Footer Actions Compact */}
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-8 flex-1 gap-1.5 rounded-lg border-2 text-[10px] font-black uppercase">
+              <Percent className="h-3 w-3" /> F3 DESC.
             </Button>
-            <Button
-              variant="outline"
-              className="h-12 gap-2 rounded-xl border-2 font-medium"
-            >
-              <Settings className="h-4 w-4" />
-              F10 Opciones
+            <Button variant="outline" className="h-8 flex-1 gap-1.5 rounded-lg border-2 text-[10px] font-black uppercase">
+              <Settings className="h-3 w-3" /> F10 OPT.
             </Button>
           </div>
-
           <Button
             disabled={cart.length === 0}
             onClick={() => setShowPaymentModal(true)}
-            className="h-14 gap-2 rounded-xl bg-emerald-600 text-lg font-bold text-white hover:bg-emerald-700 disabled:opacity-50 shadow-lg"
+            className="h-10 w-full gap-2 rounded-xl bg-emerald-600 text-base font-black text-white hover:bg-emerald-700 shadow-lg mt-0"
           >
-            <CreditCard className="h-5 w-5" />
-            COBRAR
-            <kbd className="ml-2 rounded bg-emerald-700 px-2 py-1 text-xs">F5</kbd>
+            <CreditCard className="h-4 w-4" />
+            COBRAR (F5)
           </Button>
         </CardContent>
       </Card>
@@ -478,6 +470,11 @@ export function SalesModule() {
       <PaymentModal
         open={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
+        paymentMethods={
+           config?.payment_methods_json 
+           ? JSON.parse(config.payment_methods_json) 
+           : []
+        }
         onConfirm={async (method: string) => {
           try {
             const payload: SaleCreateDTO = {
@@ -489,14 +486,17 @@ export function SalesModule() {
               total_amount_bs: totalBs,
               exchange_rate: exchangeRate,
               payment_method: method,
-              items: cart.map(i => ({
-                 product_id: i.id,
-                 product_name: i.name,
-                 quantity: i.cart_quantity,
-                 unit_price_usd: i.price_usd,
-                 tax_amount_usd: enableTaxes ? i.price_usd * (taxRatePercent/100) * i.cart_quantity : 0,
-                 total_price_usd: enableTaxes ? (i.price_usd * (1 + taxRatePercent/100)) * i.cart_quantity : i.price_usd * i.cart_quantity
-              }))
+              items: cart.map(i => {
+                 const activeP = getItemActivePrice(i, i.cart_quantity)
+                 return {
+                   product_id: i.id,
+                   product_name: i.name,
+                   quantity: i.cart_quantity,
+                   unit_price_usd: activeP,
+                   tax_amount_usd: enableTaxes ? activeP * (taxRatePercent/100) * i.cart_quantity : 0,
+                   total_price_usd: enableTaxes ? (activeP * (1 + taxRatePercent/100)) * i.cart_quantity : activeP * i.cart_quantity
+                 }
+              })
             }
             
             await createSale.mutateAsync(payload)
@@ -512,6 +512,7 @@ export function SalesModule() {
         }}
         totalAmount={total}
         totalAmountBs={totalBs}
+        exchangeRate={exchangeRate}
       />
 
       <QuickClientModal 

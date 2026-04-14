@@ -26,6 +26,7 @@ export interface SystemStatus {
   animations: boolean;
   high_contrast: boolean;
   interface_density: string;
+  payment_methods_json: string;
 }
 
 export type SystemUpdatePayload = Partial<Omit<SystemStatus, 'status' | 'database'>>;

@@ -76,6 +76,10 @@ class SystemConfig(SQLModel, table=True):
     high_contrast: bool = Field(default=False, nullable=False)
     interface_density: str = Field(default="normal", nullable=False)
     
+    # Custom Payment Methods as JSON
+    payment_methods_json: str = Field(default='[]', nullable=False)
+    
+    
     updated_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
 class Client(SQLModel, table=True):

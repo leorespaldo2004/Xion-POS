@@ -28,9 +28,6 @@ const navItems = [
   { icon: UserCircle, label: "Clientes" },
   { icon: Building2, label: "Proveedores" },
   { icon: BarChart3, label: "Reportes" },
-  { icon: Settings, label: "Configuraciones" },
-  { icon: Palette, label: "Preferencias" },
-  { icon: HelpCircle, label: "Ayuda" },
 ]
 
 interface DashboardSidebarProps {

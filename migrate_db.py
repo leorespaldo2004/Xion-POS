@@ -22,6 +22,17 @@ else:
             print("Successfully added 'tags' column and index.")
         else:
             print("'tags' column already exists.")
+
+        # Check systemconfig table
+        cursor.execute("PRAGMA table_info(systemconfig)")
+        sys_cols = [col[1] for col in cursor.fetchall()]
+        if "payment_methods_json" not in sys_cols:
+            default_methods = '[{"id":"efectivo-usd","label":"Efectivo USD","icon":"DollarSign","color":"text-green-600","currency":"USD"},{"id":"efectivo-bs","label":"Efectivo Bs","icon":"Banknote","color":"text-blue-600","currency":"VES"},{"id":"debito","label":"Débito","icon":"CreditCard","color":"text-purple-600","currency":"VES"},{"id":"credito","label":"Crédito","icon":"CreditCard","color":"text-orange-600","currency":"VES"},{"id":"transferencia","label":"Transferencia","icon":"Smartphone","color":"text-cyan-600","currency":"VES"},{"id":"pago-movil","label":"Pago Móvil","icon":"QrCode","color":"text-pink-600","currency":"VES"}]'
+            print("Adding 'payment_methods_json' column to 'systemconfig' table...")
+            cursor.execute(f"ALTER TABLE systemconfig ADD COLUMN payment_methods_json TEXT NOT NULL DEFAULT '{default_methods}'")
+            print("Successfully added 'payment_methods_json' column.")
+        else:
+            print("'payment_methods_json' column already exists.")
             
         conn.commit()
         conn.close()

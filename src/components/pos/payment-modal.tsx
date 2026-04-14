@@ -20,6 +20,8 @@ import {
   DollarSign,
   AlertCircle,
   CheckCircle2,
+  Wallet,
+  Building,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -29,23 +31,20 @@ interface PaymentModalProps {
   onConfirm: (method: string) => void
   totalAmount: number
   totalAmountBs: number
+  totalAmountBs: number
+  exchangeRate: number
+  paymentMethods: any[]
 }
 
-interface PaymentMethod {
-  id: string
-  label: string
-  icon: React.ElementType
-  color: string
+const IconMap: Record<string, React.ElementType> = {
+  DollarSign,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  QrCode,
+  Wallet,
+  Building
 }
-
-const paymentMethods: PaymentMethod[] = [
-  { id: "efectivo-usd", label: "Efectivo USD", icon: DollarSign, color: "text-green-600" },
-  { id: "efectivo-bs", label: "Efectivo Bs", icon: Banknote, color: "text-blue-600" },
-  { id: "debito", label: "Débito", icon: CreditCard, color: "text-purple-600" },
-  { id: "credito", label: "Crédito", icon: CreditCard, color: "text-orange-600" },
-  { id: "transferencia", label: "Transferencia", icon: Smartphone, color: "text-cyan-600" },
-  { id: "pago-movil", label: "Pago Móvil", icon: QrCode, color: "text-pink-600" },
-]
 
 export function PaymentModal({
   open,
@@ -53,8 +52,11 @@ export function PaymentModal({
   onConfirm,
   totalAmount,
   totalAmountBs,
+  exchangeRate,
+  paymentMethods = []
 }: PaymentModalProps) {
   const [payments, setPayments] = useState<Record<string, string>>({})
+  const [focusedInput, setFocusedInput] = useState<string | null>(null)
 
   const handlePaymentChange = (methodId: string, value: string) => {
     setPayments((prev) => ({
@@ -63,12 +65,17 @@ export function PaymentModal({
     }))
   }
 
+  const isBsMethod = (methodId: string) => {
+    const method = paymentMethods.find((m) => m.id === methodId)
+    return method ? method.currency === "VES" : false
+  }
+
   const calculateTotal = () => {
     return Object.entries(payments).reduce((sum, [methodId, value]) => {
       const amount = parseFloat(value) || 0
       // Convert Bs to USD if it's a Bs payment method
-      if (methodId === "efectivo-bs") {
-        return sum + amount / 36.5
+      if (isBsMethod(methodId)) {
+        return sum + amount / exchangeRate
       }
       return sum + amount
     }, 0)
@@ -81,6 +88,30 @@ export function PaymentModal({
 
   const clearPayments = () => {
     setPayments({})
+    setFocusedInput(null)
+  }
+
+  const handleCompletePayment = () => {
+    if (!focusedInput) return
+    
+    // Calculate how much we need in USD by excluding the currently focused input
+    const paidWithoutFocused = Object.entries(payments).reduce((sum, [methodId, value]) => {
+      if (methodId === focusedInput) return sum
+      const amount = parseFloat(value) || 0
+      return sum + (isBsMethod(methodId) ? amount / exchangeRate : amount)
+    }, 0)
+
+    const remainingToFillUSD = totalAmount - paidWithoutFocused
+    if (remainingToFillUSD <= 0) return
+
+    const valueToSet = isBsMethod(focusedInput)
+      ? remainingToFillUSD * exchangeRate
+      : remainingToFillUSD
+
+    setPayments(prev => ({
+      ...prev,
+      [focusedInput]: valueToSet.toFixed(2)
+    }))
   }
 
   return (
@@ -106,18 +137,20 @@ export function PaymentModal({
         {/* Payment methods grid */}
         <div className="max-h-[50vh] space-y-4 overflow-y-auto rounded-lg border border-border bg-card/50 p-6">
           <div className="grid grid-cols-2 gap-4">
-            {paymentMethods.map((method) => (
+            {paymentMethods.map((method) => {
+              const IconComponent = IconMap[method.icon] || CreditCard
+              return (
               <div key={method.id} className="space-y-2">
                 <Label
                   htmlFor={method.id}
                   className="flex items-center gap-2 text-sm font-semibold text-foreground"
                 >
-                  <method.icon className={`h-4 w-4 ${method.color}`} />
+                  <IconComponent className={`h-4 w-4 ${method.color || 'text-primary'}`} />
                   {method.label}
                 </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    {method.id === "efectivo-bs" ? "Bs" : "$"}
+                    {isBsMethod(method.id) ? "Bs" : "$"}
                   </span>
                   <Input
                     id={method.id}
@@ -126,11 +159,12 @@ export function PaymentModal({
                     placeholder="0.00"
                     value={payments[method.id] || ""}
                     onChange={(e) => handlePaymentChange(method.id, e.target.value)}
-                    className="h-12 rounded-xl border-primary/30 pl-10 text-right font-mono text-lg focus:border-primary focus:ring-primary"
+                    onFocus={() => setFocusedInput(method.id)}
+                    className={`h-12 rounded-xl border-primary/30 pl-10 text-right font-mono text-lg focus:border-primary focus:ring-primary ${focusedInput === method.id ? 'ring-2 ring-primary border-primary' : ''}`}
                   />
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
 
@@ -201,6 +235,14 @@ export function PaymentModal({
             className="border-2 hover:bg-accent/50"
           >
             Limpiar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleCompletePayment}
+            disabled={!focusedInput || totalAmount <= 0}
+            className="border-2 border-primary/50 text-primary hover:bg-primary/10"
+          >
+            Completar
           </Button>
           <Button
             variant="outline"

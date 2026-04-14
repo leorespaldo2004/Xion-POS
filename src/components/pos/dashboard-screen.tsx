@@ -67,6 +67,7 @@ export function DashboardScreen({ onLogout }: DashboardScreenProps) {
           title={activeNav === "Dashboard" ? "Caja Principal" : activeNav}
           exchangeRate={exchangeRate}
           onLogout={onLogout}
+          onNavigate={setActiveNav}
         />
 
         {/* Dynamic Content */}

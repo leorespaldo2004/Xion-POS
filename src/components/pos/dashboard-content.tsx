@@ -12,11 +12,25 @@ import {
   LockOpen,
   Smartphone,
   ArrowRightLeft,
+  QrCode,
+  Wallet,
+  Building,
 } from "lucide-react"
 import { ConnectionTester } from "@/components/pos/connection-tester"
 
 interface DashboardContentProps {
   onCloseCaja: () => void
+}
+
+const IconMap: Record<string, React.ElementType> = {
+  DollarSign,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  QrCode,
+  ArrowRightLeft,
+  Wallet,
+  Building
 }
 
 const paymentMethodsMock = [
@@ -38,10 +52,24 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
   const { data: config } = useSystemStatus()
   const exchangeRate = config?.current_exchange_rate_bs || 36.5
 
-  const paymentMethods = paymentMethodsMock.map((method) => ({
-    ...method,
-    bs: method.usd * exchangeRate
-  }))
+  const paymentMethodsFromJson = config?.payment_methods_json ? JSON.parse(config.payment_methods_json) : []
+
+  const paymentMethods = paymentMethodsFromJson.length > 0 
+    ? paymentMethodsFromJson.map((method: any, i: number) => {
+        // Generar un mock de USD determinístico basado en el index para que no cambie brutalmente
+        const mockUsd = 1000 - (i * 150) > 0 ? 1000 - (i * 150) : 50;
+        return {
+          icon: IconMap[method.icon] || CreditCard, 
+          label: method.label, 
+          usd: mockUsd, 
+          bs: mockUsd * exchangeRate, 
+          color: method.color || "text-primary"
+        }
+      })
+    : paymentMethodsMock.map((method) => ({
+        ...method,
+        bs: method.usd * exchangeRate
+      }))
 
   const totalUsd = paymentMethods.reduce((acc, m) => acc + m.usd, 0)
   const totalBs = paymentMethods.reduce((acc, m) => acc + m.bs, 0)
