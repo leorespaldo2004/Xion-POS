@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from uuid import uuid4
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -80,3 +80,37 @@ def delete_user(user_id: str, session: Session = Depends(get_session)):
         raise UserNotFoundError(user_id)
     session.delete(user)
     session.commit()
+
+class AccessVerificationRequest(SQLModel):
+    pin: Optional[str] = None
+    qr_token: Optional[str] = None
+    required_role: str = "manager"
+
+@router.post("/verify-access")
+def verify_access(payload: AccessVerificationRequest, session: Session = Depends(get_session)):
+    if payload.pin:
+        user = session.exec(select(User).where(User.access_pin == payload.pin)).first()
+    elif payload.qr_token:
+        user = session.exec(select(User).where(User.qr_token == payload.qr_token)).first()
+    else:
+        raise HTTPException(status_code=400, detail="Debe proveer pin o qr_token")
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+        
+    roles = ["admin", "manager", "cashier", "viewer"]
+    try:
+        user_role_idx = roles.index(user.role)
+    except ValueError:
+        user_role_idx = 99
+        
+    try:
+        req_role_idx = roles.index(payload.required_role)
+    except ValueError:
+        req_role_idx = 99
+    
+    if user_role_idx > req_role_idx:
+        raise HTTPException(status_code=403, detail="Permisos insuficientes para esta acción")
+        
+    return {"valid": True, "user_name": user.name}
+

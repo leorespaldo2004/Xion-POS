@@ -27,15 +27,18 @@ interface ArqueoModalProps {
   onConfirm: () => void
 }
 
-const systemAmounts = [
-  { method: "Efectivo", systemAmount: 1250.0 },
-  { method: "Tarjeta", systemAmount: 890.5 },
-  { method: "Transferencia", systemAmount: 450.0 },
-  { method: "Pago Movil", systemAmount: 320.75 },
-]
+import { useSessionSummary, useCloseSession } from "@/hooks/queries/use-cash-register"
 
-export function ArqueoModal({ open, onClose, onConfirm }: ArqueoModalProps) {
+export function ArqueoModal({ open, onClose }: ArqueoModalProps) {
   const [realAmounts, setRealAmounts] = useState<Record<string, string>>({})
+  const { data: summary } = useSessionSummary()
+  const closeMutation = useCloseSession()
+
+  // Mapear los montos del sistema desde el summary
+  const currentSystemAmounts = summary?.payments ? Object.entries(summary.payments).map(([method, amount]) => ({
+    method,
+    systemAmount: amount as number
+  })) : []
 
   const handleAmountChange = (method: string, value: string) => {
     setRealAmounts((prev) => ({ ...prev, [method]: value }))
@@ -46,12 +49,23 @@ export function ArqueoModal({ open, onClose, onConfirm }: ArqueoModalProps) {
     return real - systemAmount
   }
 
-  const totalSystem = systemAmounts.reduce((acc, item) => acc + item.systemAmount, 0)
-  const totalReal = systemAmounts.reduce(
+  const totalSystem = currentSystemAmounts.reduce((acc, item) => acc + item.systemAmount, 0)
+  const totalReal = currentSystemAmounts.reduce(
     (acc, item) => acc + (parseFloat(realAmounts[item.method] || "0") || 0),
     0
   )
   const totalDifference = totalReal - totalSystem
+
+  const handleConfirm = async () => {
+    try {
+      await closeMutation.mutateAsync({
+        closing_balance_usd: totalReal // El monto contado total
+      })
+      onClose()
+    } catch (err) {
+      // El error ya se maneja en el hook con toast
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -80,47 +94,55 @@ export function ArqueoModal({ open, onClose, onConfirm }: ArqueoModalProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {systemAmounts.map((item) => {
-                const diff = getDifference(item.systemAmount, realAmounts[item.method] || "")
-                return (
-                  <TableRow key={item.method} className="border-border hover:bg-accent/30 transition-colors">
-                    <TableCell className="font-semibold text-foreground">
-                      {item.method}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-foreground font-medium">
-                      ${item.systemAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={realAmounts[item.method] || ""}
-                        onChange={(e) => handleAmountChange(item.method, e.target.value)}
-                        className="ml-auto h-10 w-36 text-right font-mono border-primary/30 focus:border-primary focus:ring-primary"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {realAmounts[item.method] ? (
-                        <Badge
-                          className={`px-3 py-1.5 text-sm font-semibold ${
-                            diff === 0
-                              ? "bg-emerald-100 text-emerald-700"
-                              : diff > 0
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {diff >= 0 ? "+" : ""}
-                          {diff.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">--</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              {currentSystemAmounts.length > 0 ? (
+                currentSystemAmounts.map((item) => {
+                  const diff = getDifference(item.systemAmount, realAmounts[item.method] || "")
+                  return (
+                    <TableRow key={item.method} className="border-border hover:bg-accent/30 transition-colors">
+                      <TableCell className="font-semibold text-foreground">
+                        {item.method}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-foreground font-medium">
+                        ${item.systemAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={realAmounts[item.method] || ""}
+                          onChange={(e) => handleAmountChange(item.method, e.target.value)}
+                          className="ml-auto h-10 w-36 text-right font-mono border-primary/30 focus:border-primary focus:ring-primary"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {realAmounts[item.method] ? (
+                          <Badge
+                            className={`px-3 py-1.5 text-sm font-semibold ${
+                              diff === 0
+                                ? "bg-emerald-100 text-emerald-700"
+                                : diff > 0
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {diff >= 0 ? "+" : ""}
+                            {diff.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">--</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    No hay movimientos registrados en esta sesión.
+                  </TableCell>
+                </TableRow>
+              )}
 
               {/* Totals row */}
               <TableRow className="border-t-2 border-primary/30 bg-primary/5 font-bold hover:bg-primary/10 transition-colors">
@@ -154,15 +176,17 @@ export function ArqueoModal({ open, onClose, onConfirm }: ArqueoModalProps) {
           <Button
             variant="outline"
             onClick={onClose}
+            disabled={closeMutation.isPending}
             className="border-border text-foreground hover:bg-accent/50"
           >
             Cancelar
           </Button>
           <Button
-            onClick={onConfirm}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-8"
+            onClick={handleConfirm}
+            disabled={closeMutation.isPending}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-8 min-w-[140px]"
           >
-            Confirmar Cierre
+            {closeMutation.isPending ? "Cerrando..." : "Confirmar Cierre"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useProducts, Product } from "@/hooks/queries/use-inventory"
-import { useCreateSale, SaleCreateDTO } from "@/hooks/queries/use-sales"
+import { useCreateSale, SaleCreateDTO, SalePaymentDTO } from "@/hooks/queries/use-sales"
 import { useSystemStatus } from "@/hooks/queries/use-system"
 import { useClients, Client } from "@/hooks/queries/use-clients"
 import { PaymentModal } from "./payment-modal"
@@ -466,7 +466,6 @@ export function SalesModule() {
         </CardContent>
       </Card>
 
-      {/* Payment Modal */}
       <PaymentModal
         open={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
@@ -475,7 +474,7 @@ export function SalesModule() {
            ? JSON.parse(config.payment_methods_json) 
            : []
         }
-        onConfirm={async (method: string) => {
+        onConfirm={async (payments: SalePaymentDTO[]) => {
           try {
             const payload: SaleCreateDTO = {
               client_id: selectedClient?.id,
@@ -485,7 +484,7 @@ export function SalesModule() {
               total_amount_usd: total,
               total_amount_bs: totalBs,
               exchange_rate: exchangeRate,
-              payment_method: method,
+              payments,
               items: cart.map(i => {
                  const activeP = getItemActivePrice(i, i.cart_quantity)
                  return {

@@ -1,4 +1,6 @@
-from datetime import datetime
+from datetime import datetime, UTC
+def get_now_utc():
+    return datetime.now(UTC)
 from typing import Optional
 
 from enum import Enum
@@ -104,6 +106,8 @@ class User(SQLModel, table=True):
     role: str = Field(default="viewer", nullable=False) # admin, manager, cashier, viewer
     status: str = Field(default="active", nullable=False) # active, inactive
     last_login: Optional[str] = None
+    access_pin: Optional[str] = None # PIN para autorizaciones
+    qr_token: Optional[str] = Field(default=None, unique=True, index=True) # Token unico para QR
     
     # Permissions
     perm_sales: bool = Field(default=False)
@@ -147,14 +151,11 @@ class PurchaseItem(SQLModel, table=True):
     unit_cost_usd: float = Field(default=0.0)
     total_cost_usd: float = Field(default=0.0)
 
-class PaymentMethod(str, Enum):
-    CASH = "cash"
-    CARD = "card"
-    TRANSFER = "transfer"
-    MOBILE_PAY = "mobile_pay"
-    MIXED = "mixed"
-
 class Sale(SQLModel, table=True):
+    """
+    Cabecera de la venta. El detalle de cómo se pagó vive en SalePayment.
+    Se elimina el campo payment_method único para soportar multi-pago dinámico.
+    """
     id: Optional[str] = Field(default=None, primary_key=True, index=True)
     client_id: Optional[str] = Field(default=None, foreign_key="client.id")
     client_name: str = Field(default="Cliente Final", nullable=False)
@@ -163,10 +164,62 @@ class Sale(SQLModel, table=True):
     total_amount_usd: float = Field(default=0.0)
     total_amount_bs: float = Field(default=0.0)
     exchange_rate: float = Field(default=36.5, nullable=False)
-    payment_method: PaymentMethod = Field(default=PaymentMethod.CASH)
-    reference_number: Optional[str] = None
+    cash_session_id: Optional[str] = Field(default=None, foreign_key="cash_sessions.id", index=True)
     is_synced: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CashSession(SQLModel, table=True):
+    """
+    Representa una sesión de caja (Apertura/Cierre).
+    Controla los montos acumulados durante un turno de trabajo.
+    """
+    __tablename__: str = "cash_sessions"
+    id: Optional[str] = Field(default=None, primary_key=True, index=True)
+    user_id: str = Field(nullable=False, foreign_key="user.id", index=True)
+    user_name: str = Field(nullable=False) # Snapshot para el reporte
+    
+    opening_time: datetime = Field(default_factory=datetime.utcnow)
+    closing_time: Optional[datetime] = None
+    
+    opening_balance_usd: float = Field(default=0.0)
+    closing_balance_usd: float = Field(default=0.0) # Lo que el cajero cuenta al final
+    
+    # Totales calculados al momento del cierre
+    total_sales_usd: float = Field(default=0.0)
+    total_tax_usd: float = Field(default=0.0)
+    
+    # Desglose por método de pago (almacenado como JSON para flexibilidad)
+    # Ejemplo: {"pm_efectivo_usd": 150.0, "pm_pago_movil": 2400.0}
+    payments_summary_json: str = Field(default='{}', nullable=False)
+    
+    status: str = Field(default="open") # "open", "closed"
+    is_synced: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SalePayment(SQLModel, table=True):
+    """
+    Registro de cada forma de pago aplicada a una venta.
+    Soporta split-tender: una venta puede tener múltiples registros.
+    - payment_method_id: ID del método dinámico definido en SystemConfig.payment_methods_json
+    - payment_method_label: Snapshot del nombre en el momento de la venta (inmutable)
+    - currency: 'USD' o 'VES' (snapshot de la moneda del método)
+    - amount_tendered: Monto entregado en la moneda original del método
+    - amount_usd: Contravalor en USD calculado al momento de la venta
+    """
+    id: Optional[str] = Field(default=None, primary_key=True, index=True)
+    sale_id: str = Field(nullable=False, foreign_key="sale.id", index=True)
+
+    # Snapshot del método de pago (desacoplado del Enum estático)
+    payment_method_id: str = Field(nullable=False, index=True)   # Ej: "pm_efectivo_usd"
+    payment_method_label: str = Field(nullable=False)             # Ej: "Efectivo USD" (snapshot inmutable)
+    currency: str = Field(default="USD", nullable=False)          # "USD" o "VES"
+
+    amount_tendered: float = Field(default=0.0)   # En la moneda original del método
+    amount_usd: float = Field(default=0.0)         # Contravalor en USD
+    reference_code: Optional[str] = None           # Número de referencia bancaria / lote
 
 class SaleItem(SQLModel, table=True):
     id: Optional[str] = Field(default=None, primary_key=True, index=True)

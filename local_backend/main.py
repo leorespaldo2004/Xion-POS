@@ -12,6 +12,8 @@ from local_backend.api.routers.users import router as users_router
 from local_backend.api.routers.suppliers import router as suppliers_router
 from local_backend.api.routers.purchases import router as purchases_router
 from local_backend.api.routers.sales import router as sales_router
+from local_backend.api.routers.cash_register import router as cash_register_router
+from local_backend.api.routers.reports import router as reports_router
 
 from contextlib import asynccontextmanager
 
@@ -29,10 +31,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Xion POS Local Backend",
+    title="Xion POS Local API",
     version="1.0.0",
-    description="Offline-First Local API for POS System",
+    description="Offline-first POS backend for Desktop nodes",
     lifespan=lifespan,
+    debug=True,
 )
 
 app.add_middleware(
@@ -50,6 +53,8 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(suppliers_router, prefix="/api/v1")
 app.include_router(purchases_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
+app.include_router(cash_register_router, prefix="/api/v1")
+app.include_router(reports_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health")

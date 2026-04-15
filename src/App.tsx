@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/globals.css';
 import { DashboardScreen } from '@/components/pos/dashboard-screen';
-// import { LoginScreen } from '@/components/pos/login-screen'; // Descomentar cuando actives el login
+import { LoginScreen } from '@/components/pos/login-screen';
 import { apiClient } from '@/lib/api';
 import { useSystemStatus } from '@/hooks/queries/use-system';
 
@@ -11,8 +11,8 @@ export default function App() {
   const [bootState, setBootState] = useState<BootState>('checking');
   const [error, setError] = useState<string>('');
   
-  // Omitimos la seguridad temporalmente fijando esto en "true"
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  // Seguridad activada: falso por defecto, requiere login
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   const { data: config } = useSystemStatus();
 
@@ -135,13 +135,12 @@ export default function App() {
     );
   }
 
-  /* * Flujo de Autenticación (Desactivado para desarrollo)
-   * Cuando quieras volver a activar el login, simplemente cambia 
-   * el estado inicial de isAuthenticated a 'false' y descomenta este bloque.
+  /* * Flujo de Autenticación
+   * Bypass temporal activo para desarrollo mediante LoginScreen.
    */
-  // if (!isAuthenticated) {
-  //   return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
-  // }
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={(user) => setIsAuthenticated(true)} />;
+  }
 
   return (
     <DashboardScreen 

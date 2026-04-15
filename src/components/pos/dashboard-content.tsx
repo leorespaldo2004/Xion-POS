@@ -19,6 +19,7 @@ import {
 import { ConnectionTester } from "@/components/pos/connection-tester"
 
 interface DashboardContentProps {
+  onOpenCaja: () => void
   onCloseCaja: () => void
 }
 
@@ -40,9 +41,13 @@ const paymentMethodsMock = [
   { icon: Smartphone, label: "Pago Movil", usd: 320.75, color: "text-cyan-600" },
 ]
 
-export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
+import { useActiveSession, useOpenSession, useSessionSummary } from "@/hooks/queries/use-cash-register"
+
+export function DashboardContent({ onOpenCaja, onCloseCaja }: DashboardContentProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [cajaOpen, setCajaOpen] = useState(false)
+  
+  const { data: activeSession, isLoading: loadingSession } = useActiveSession()
+  const { data: summary } = useSessionSummary()
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -54,25 +59,31 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
 
   const paymentMethodsFromJson = config?.payment_methods_json ? JSON.parse(config.payment_methods_json) : []
 
+  // Mapear los métodos configurados a los montos reales de la sesión
   const paymentMethods = paymentMethodsFromJson.length > 0 
-    ? paymentMethodsFromJson.map((method: any, i: number) => {
-        // Generar un mock de USD determinístico basado en el index para que no cambie brutalmente
-        const mockUsd = 1000 - (i * 150) > 0 ? 1000 - (i * 150) : 50;
+    ? paymentMethodsFromJson.map((method: any) => {
+        const realUsd = summary?.payments?.[method.label] || 0.0
         return {
           icon: IconMap[method.icon] || CreditCard, 
           label: method.label, 
-          usd: mockUsd, 
-          bs: mockUsd * exchangeRate, 
+          usd: realUsd, 
+          bs: realUsd * exchangeRate, 
           color: method.color || "text-primary"
         }
       })
-    : paymentMethodsMock.map((method) => ({
-        ...method,
-        bs: method.usd * exchangeRate
-      }))
+    : paymentMethodsMock.map((method) => {
+        // Fallback si no hay configuración: usar etiquetas estándar
+        const realUsd = summary?.payments?.[method.label] || 0.0
+        return {
+          ...method,
+          usd: realUsd,
+          bs: realUsd * exchangeRate
+        }
+      })
 
-  const totalUsd = paymentMethods.reduce((acc, m) => acc + m.usd, 0)
-  const totalBs = paymentMethods.reduce((acc, m) => acc + m.bs, 0)
+  const totalUsd = summary?.total_sales_usd || 0.0
+  const totalBs = totalUsd * exchangeRate
+  const isCajaOpen = !!activeSession
 
   const formattedDate = currentTime.toLocaleDateString("es-VE", {
     weekday: "long",
@@ -98,8 +109,8 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
         {/* Action buttons */}
         <div className="flex gap-4">
           <Button
-            onClick={() => setCajaOpen(true)}
-            disabled={cajaOpen}
+            onClick={onOpenCaja}
+            disabled={isCajaOpen || loadingSession}
             className="h-14 gap-3 rounded-xl bg-emerald-600 px-8 text-lg font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 shadow-lg"
           >
             <LockOpen className="h-6 w-6" />
@@ -107,7 +118,7 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
           </Button>
           <Button
             onClick={onCloseCaja}
-            disabled={!cajaOpen}
+            disabled={!isCajaOpen}
             variant="destructive"
             className="h-14 gap-3 rounded-xl px-8 text-lg font-semibold shadow-lg disabled:opacity-50"
           >
@@ -117,10 +128,10 @@ export function DashboardContent({ onCloseCaja }: DashboardContentProps) {
         </div>
 
         {/* Status badge */}
-        {cajaOpen && (
+        {isCajaOpen && (
           <div className="inline-flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-3 w-fit">
             <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-sm font-semibold text-emerald-700">Caja abierta y lista para transacciones</span>
+            <span className="text-sm font-semibold text-emerald-700">Caja abierta y lista para transacciones ({activeSession.user_name})</span>
           </div>
         )}
 

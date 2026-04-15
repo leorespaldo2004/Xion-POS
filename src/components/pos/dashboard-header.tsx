@@ -18,6 +18,7 @@ import {
   Wifi,
   Wrench,
   Palette,
+  Store,
 } from "lucide-react"
 
 interface DashboardHeaderProps {
@@ -54,14 +55,31 @@ export function DashboardHeader({ title, exchangeRate, onLogout, onNavigate }: D
           <span className="sr-only">Notificaciones</span>
         </button>
 
-        <div className="flex items-center gap-3 rounded-lg transition-all hover:bg-accent/50 px-2 py-1 cursor-default">
-          <Avatar className="h-9 w-9 cursor-default">
-            <AvatarFallback className="bg-primary text-xs font-medium text-primary-foreground">
-              CA
-            </AvatarFallback>
-          </Avatar>
-          <span className="sr-only">Perfil de usuario</span>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-3 rounded-lg transition-all hover:bg-accent/50 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-primary text-xs font-medium text-primary-foreground select-none">
+                  CA
+                </AvatarFallback>
+              </Avatar>
+              <span className="sr-only">Perfil de usuario</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-2 py-1.5 text-sm font-semibold text-foreground">
+              Cajero de Desarrollo
+            </div>
+            <div className="px-2 pb-2 text-xs text-muted-foreground">
+              Administrador General
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onNavigate("Perfil")}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Mi Perfil</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -71,10 +89,11 @@ export function DashboardHeader({ title, exchangeRate, onLogout, onNavigate }: D
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => console.log('Navegando a Mi Cuenta (próximamente)')}>
-              <User className="mr-2 h-4 w-4" />
-              <span>Mi Cuenta</span>
+            <DropdownMenuItem onClick={() => onNavigate("Cuenta")}>
+              <Store className="mr-2 h-4 w-4" />
+              <span>Suscripción y Cuenta</span>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onNavigate("Configuraciones")}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Configuraciones</span>

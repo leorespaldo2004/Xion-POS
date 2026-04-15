@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { localApiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -21,7 +23,6 @@ import {
   Package,
   Users,
   Download,
-  FileText,
   Calendar,
   Building2,
   UserCircle,
@@ -32,31 +33,35 @@ export function ReportsModule() {
   const [dateRange, setDateRange] = useState("month")
   const [reportType, setReportType] = useState("")
 
-  // Mock data for dashboard
-  const dashboardStats = {
-    totalSales: 15420.5,
-    totalSalesBs: 570558.5,
-    salesGrowth: 12.5,
-    totalPurchases: 8950.0,
-    totalPurchasesBs: 331150.0,
-    purchasesChange: -3.2,
-    inventoryValue: 45230.0,
-    inventoryValueBs: 1673510.0,
-    lowStockItems: 8,
-    activeClients: 142,
-    newClients: 15,
-    totalDebt: 3240.5,
-    totalSuppliers: 28,
-    activeSuppliers: 24,
+  // Fetch real dashboard stats from the backend
+  const { data: dashboardData, isLoading, isError } = useQuery({
+    queryKey: ["reports-dashboard", dateRange],
+    queryFn: async () => {
+      const { data } = await localApiClient.get(`/reports/dashboard?period=${dateRange}`)
+      return data
+    },
+    refetchInterval: 30000,
+  })
+
+  // We assign defaults in case data is loading or missing
+  const dashboardStats = dashboardData?.stats || {
+    totalSales: 0,
+    totalSalesBs: 0,
+    salesGrowth: 0,
+    totalPurchases: 0,
+    totalPurchasesBs: 0,
+    purchasesChange: 0,
+    inventoryValue: 0,
+    inventoryValueBs: 0,
+    lowStockItems: 0,
+    activeClients: 0,
+    newClients: 0,
+    totalDebt: 0,
+    totalSuppliers: 0,
+    activeSuppliers: 0,
   }
 
-  const topProducts = [
-    { name: "Coca Cola 500ml", sales: 345, revenue: 517.5 },
-    { name: "Harina Pan Maiz 1kg", sales: 298, revenue: 357.6 },
-    { name: "Pan Bimbo Blanco", sales: 234, revenue: 819.0 },
-    { name: "Lays Papas Clasicas", sales: 189, revenue: 396.9 },
-    { name: "Leche Completa 1L", sales: 167, revenue: 300.6 },
-  ]
+  const topProducts = dashboardData?.topProducts || []
 
   const reportCategories = [
     {
@@ -140,9 +145,50 @@ export function ReportsModule() {
     },
   ]
 
-  const downloadReport = (reportId: string) => {
-    alert(`Descargando reporte: ${reportId} en formato Excel`)
-    // Here you would trigger the actual download
+  const downloadReport = async (reportId: string) => {
+    try {
+      // 1. Fetch data from backend using the current period
+      const { data } = await localApiClient.get(`/reports/download/${reportId}?period=${dateRange}`)
+      
+      if (!data || !data.length) {
+        alert("El reporte no contiene datos para el período seleccionado.")
+        return
+      }
+
+      // 2. Convert JSON to CSV dynamically
+      const headers = Object.keys(data[0])
+      const csvRows = []
+      
+      // Add header row
+      csvRows.push(headers.join(","))
+      
+      // Add data rows
+      for (const row of data) {
+        const values = headers.map(header => {
+          const val = row[header]
+          // Escape quotes and commas
+          const escaped = ("" + val).replace(/"/g, '""')
+          return `"${escaped}"`
+        })
+        csvRows.push(values.join(","))
+      }
+      
+      const csvString = csvRows.join("\n")
+      
+      // 3. Trigger Download
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      link.setAttribute("download", `reporte_${reportId}_${dateRange}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+    } catch (error) {
+      console.error("Error al descargar el reporte", error)
+      alert("Hubo un error al generar el reporte.")
+    }
   }
 
   return (
