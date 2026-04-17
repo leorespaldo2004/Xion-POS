@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Xion POS Local API",
-    version="1.0.0",
+    version="1.1.0",
     description="Offline-first POS backend for Desktop nodes",
     lifespan=lifespan,
     debug=True,
@@ -40,7 +40,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "app://.", "http://localhost:8000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "app://.",                # Electron en producción (Windows)
+        "file://",                # Electron cargando index.html directamente
+    ],
+    allow_origin_regex=r".*",     # En modo dev-empaquetado puede venir como 'null' o vacío
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -84,11 +92,24 @@ def get_frozen_path() -> str:
 if __name__ == "__main__":
     import uvicorn
 
-    is_dev = not getattr(sys, 'frozen', False)
-    uvicorn.run(
-        "local_backend.main:app",
-        host="127.0.0.1",
-        port=8000,
-        reload=is_dev,
-        workers=1 if not is_dev else 1,
-    )
+    is_frozen = getattr(sys, 'frozen', False)
+    
+    if is_frozen:
+        # En producción: Pasamos el objeto app directamente y deshabilitamos el reload
+        print(f"[PYTHON] Starting production backend from: {sys.executable}")
+        uvicorn.run(
+            app,
+            host="127.0.0.1",
+            port=8000,
+            log_level="info",
+            workers=1
+        )
+    else:
+        # En desarrollo: Usamos el string para permitir el auto-reload
+        uvicorn.run(
+            "local_backend.main:app",
+            host="127.0.0.1",
+            port=8000,
+            reload=True,
+            workers=1,
+        )

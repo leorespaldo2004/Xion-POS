@@ -1,9 +1,17 @@
-﻿import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { pyManager } from './py_manager';
 import { AppUpdater } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
+
+process.on('uncaughtException', (error: any) => {
+  if (error.code === 'EPIPE') {
+    // Ignorar EPIPE proveniente de stdout/stderr cerrados prematuramente.
+    return;
+  }
+  console.error('[Uncaught Exception]', error);
+});
 let backendUrl = 'http://127.0.0.1:8000';
 
 async function loadURLWithRetry(win: BrowserWindow, url: string, retries = 30, delayMs = 200): Promise<void> {
@@ -28,7 +36,8 @@ async function createWindow(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false,
+    show: true,
+    backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -42,18 +51,19 @@ async function createWindow(): Promise<BrowserWindow> {
   win.webContents.on('crashed', () => {
     console.error('[CRITICAL] BrowserWindow renderer crashed');
   });
-  win.webContents.on('console-message', (_, level, message, line, sourceId) => {
-    console.log(`[Renderer][${level}] ${sourceId}:${line} ${message}`);
-  });
-
+  
   const isDev = !app.isPackaged;
   if (isDev) {
     const viteUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
     try {
       await loadURLWithRetry(win, viteUrl);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[CRITICAL] Failed to load Vite URL after retries', err);
-      app.quit();
+      dialog.showErrorBox(
+        'Error de Desarrollo',
+        `No se pudo conectar con el servidor de desarrollo de Vite.\n\nDetalle: ${err.message}`
+      );
+      app.exit(1);
       return win;
     }
     win.webContents.openDevTools({ mode: 'right' });
@@ -61,14 +71,17 @@ async function createWindow(): Promise<BrowserWindow> {
     const indexFile = path.join(process.resourcesPath, 'out', 'index.html');
     try {
       await win.loadFile(indexFile);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[CRITICAL] Failed to load production index.html', err);
+      dialog.showErrorBox(
+        'Error de Producción',
+        `No se encontró el archivo de interfaz (index.html).\n\nDetalle: ${err.message}`
+      );
+      app.exit(1);
     }
   }
 
-  win.once('ready-to-show', () => {
-    win.show();
-  });
+  // Ya no necesitamos ready-to-show porque show: true
 
   return win;
 }
@@ -76,21 +89,35 @@ async function createWindow(): Promise<BrowserWindow> {
 app.whenReady().then(async () => {
   try {
     backendUrl = await pyManager.start();
-  } catch (err) {
+  } catch (err: any) {
     console.error('[CRITICAL] Backend failed to start', err);
+    try { pyManager.stop(); } catch (e) {}
+    dialog.showErrorBox(
+      'Error de Sistema (Backend)',
+      `No se pudo iniciar el servidor local de base de datos.\n\nDetalle: ${err.message || 'Error desconocido'}\n\nPor favor, contacte a soporte técnico.`
+    );
     app.quit();
     return;
   }
 
   ipcMain.handle('get-backend-url', () => backendUrl);
 
-  mainWindow = await createWindow();
-
   try {
-    const updater = new AppUpdater(mainWindow);
-    setTimeout(() => updater.checkForUpdates(), 10000);
-  } catch (err) {
-    console.warn('Updater initialization failed:', err);
+    mainWindow = await createWindow();
+
+    try {
+      const updater = new AppUpdater(mainWindow);
+      setTimeout(() => updater.checkForUpdates(), 10000);
+    } catch (updaterErr) {
+      console.warn('Updater initialization failed:', updaterErr);
+    }
+  } catch (err: any) {
+    try { pyManager.stop(); } catch (e) {}
+    dialog.showErrorBox(
+      'Error de Aplicación',
+      `Ocurrió un error inesperado al iniciar la ventana principal.\n\nDetalle: ${err.message}`
+    );
+    app.quit();
   }
 
   app.on('activate', async () => {

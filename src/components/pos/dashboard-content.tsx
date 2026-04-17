@@ -16,7 +16,6 @@ import {
   Wallet,
   Building,
 } from "lucide-react"
-import { ConnectionTester } from "@/components/pos/connection-tester"
 
 interface DashboardContentProps {
   onOpenCaja: () => void
@@ -196,9 +195,6 @@ export function DashboardContent({ onOpenCaja, onCloseCaja }: DashboardContentPr
           </CardContent>
         </Card>
 
-        <div className="mt-3">
-          <ConnectionTester />
-        </div>
       </div>
     </div>
   )

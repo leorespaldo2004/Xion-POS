@@ -1,4 +1,4 @@
-﻿import { app } from 'electron';
+import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
@@ -77,7 +77,7 @@ export class PythonBackendManager {
       this.backendProcess = null;
     });
 
-    await this.waitForHealth(10000);
+    await this.waitForHealth(60000);
     return `http://${this.host}:${this.port}`;
   }
 

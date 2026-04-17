@@ -42,7 +42,7 @@ tsconfig.tsbuildinfo
 node_modules/
 # Electron
 electron-builder-effective-config.yaml
-electon_app/.env
+electron_app/.env
 
 # IDE
 .vscode/

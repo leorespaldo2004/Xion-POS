@@ -1,6 +1,6 @@
 {
   "name": "xion-pos-desktop",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "author": "XionPOS DevMaster <admin@xionpos.com>",
   "description": "Dolarizado Offline-First POS System",
   "main": "dist/bootstrap.js",
@@ -13,7 +13,7 @@
     "build:ts": "tsc -p tsconfig.json",
     "build:secure": "electron scripts/compile_main.js",
     "pack": "npm run clean && cd .. && npm run build && cd electron_app && npm run build:secure && electron-builder --dir",
-    "dist": "npm run clean && cd .. && npm run build && cd electron_app && npm run build:secure && electron-builder --publish always"
+    "dist": "npm run clean && cd .. && npm run build && cd electron_app && npm run build:secure && node scripts/publish.js"
   },
   "devDependencies": {
     "electron": "^40.6.0",
@@ -56,7 +56,7 @@
         "from": "dist/out",
         "to": "out",
         "filter": [
-          "**/*"
+          "**"
         ]
       }
     ],
