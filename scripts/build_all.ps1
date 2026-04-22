@@ -9,6 +9,15 @@ if ($args -contains "--publish" -or $Mode -eq "--publish") {
 
 $ErrorActionPreference = "Stop"
 
+if (Test-Path ".env") {
+    Write-Host "Cargando variables de entorno desde .env..."
+    Get-Content .env | Where-Object { $_ -match "^\s*([\w]+)\s*=\s*(.*)\s*$" } | ForEach-Object {
+        $name = $matches[1]
+        $value = $matches[2]
+        [Environment]::SetEnvironmentVariable($name, $value, "Process")
+    }
+}
+
 Write-Host "--- BUILD: Iniciando proceso de empaquetado completo ---"
 
 # 1. Limpieza de procesos residuales
@@ -46,8 +55,8 @@ if ($Publish) {
     npx electron-builder --publish always
 }
 if (-not $Publish) {
-    Write-Host "Modo: Construccion Local..."
-    npx electron-builder --dir
+    Write-Host "Modo: Construccion Local (Generando Instalador .exe)..."
+    npx electron-builder
 }
 Pop-Location
 

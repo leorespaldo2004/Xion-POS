@@ -456,12 +456,21 @@ export function SalesModule() {
             </Button>
           </div>
           <Button
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || (config && !config.is_cash_session_open)}
             onClick={() => setShowPaymentModal(true)}
-            className="h-10 w-full gap-2 rounded-xl bg-emerald-600 text-base font-black text-white hover:bg-emerald-700 shadow-lg mt-0"
+            className="h-10 w-full gap-2 rounded-xl bg-emerald-600 text-base font-black text-white hover:bg-emerald-700 shadow-lg mt-0 disabled:bg-slate-500"
           >
-            <CreditCard className="h-4 w-4" />
-            COBRAR (F5)
+            {config && !config.is_cash_session_open ? (
+               <>
+                 <Lock className="h-4 w-4" />
+                 ABRIR CAJA PRIMERO
+               </>
+            ) : (
+               <>
+                 <CreditCard className="h-4 w-4" />
+                 COBRAR (F5)
+               </>
+            )}
           </Button>
         </CardContent>
       </Card>
@@ -477,7 +486,7 @@ export function SalesModule() {
         onConfirm={async (payments: SalePaymentDTO[]) => {
           try {
             const payload: SaleCreateDTO = {
-              client_id: selectedClient?.id,
+              client_id: selectedClient?.id || undefined, // undefined will be stripped by Axios, but we can send it or explicitly map
               client_name: selectedClient ? selectedClient.name : "Cliente Final",
               subtotal_usd: subtotal,
               tax_amount_usd: tax,
@@ -506,7 +515,10 @@ export function SalesModule() {
             setClientIdentifier("")
             setSelectedClient(null)
           } catch (e: any) {
-             toast.error(e.response?.data?.detail || "Error interno procesando la venta.")
+             const errorMsg = e.response?.data?.detail 
+                ? (Array.isArray(e.response.data.detail) ? JSON.stringify(e.response.data.detail) : e.response.data.detail)
+                : "Error interno procesando la venta.";
+             toast.error(errorMsg);
           }
         }}
         totalAmount={total}

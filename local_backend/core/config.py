@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     Gestiona la ruta de la base de datos dinámicamente según el entorno.
     """
     APP_NAME: str = "Xion POS Local Backend"
-    VERSION: str = "1.1.0"
+    VERSION: str = "1.1.1"
     
     @property
     def BASE_DIR(self) -> Path:

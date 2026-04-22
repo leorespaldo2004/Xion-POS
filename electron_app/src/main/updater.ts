@@ -15,8 +15,8 @@ export class AppUpdater {
     constructor(window: BrowserWindow) {
         this.window = window;
         
-        // Evitamos que la descarga bloquee la red del POS de forma agresiva.
-        autoUpdater.autoDownload = true;
+        // El usuario decide cuándo descargar la actualización.
+        autoUpdater.autoDownload = false;
         autoUpdater.autoInstallOnAppQuit = true;
 
         this.registerEvents();
@@ -25,12 +25,24 @@ export class AppUpdater {
     public checkForUpdates(): void {
         log.info('Checking for updates...');
         try {
-            autoUpdater.checkForUpdatesAndNotify().catch((error: any) => {
+            autoUpdater.checkForUpdates().catch((error: any) => {
                 log.warn('Update check failed (likely offline):', error?.message || error);
             });
         } catch (error) {
             log.error('Critical error initializing update check:', error);
         }
+    }
+
+    public downloadUpdate(): void {
+        log.info('User requested update download.');
+        autoUpdater.downloadUpdate().catch((error: any) => {
+            log.error('Error downloading update:', error);
+        });
+    }
+
+    public installUpdate(): void {
+        log.info('User requested install and restart.');
+        autoUpdater.quitAndInstall();
     }
 
     private registerEvents(): void {
@@ -40,7 +52,7 @@ export class AppUpdater {
 
         autoUpdater.on('update-available', (info: any) => {
             log.info('Update available:', info.version);
-            this.window.webContents.send('update-available', info.version);
+            this.window.webContents.send('update-available', info);
         });
 
         autoUpdater.on('update-not-available', () => {
@@ -49,10 +61,16 @@ export class AppUpdater {
 
         autoUpdater.on('error', (err: any) => {
             log.warn('Error in auto-updater. System will continue operating offline.', err);
+            this.window.webContents.send('update-error', err.message);
+        });
+
+        autoUpdater.on('download-progress', (progressObj: any) => {
+            // progressObj fields: bytesPerSecond, percent, transferred, total
+            this.window.webContents.send('update-progress', progressObj);
         });
 
         autoUpdater.on('update-downloaded', (info: any) => {
-            log.info('Update downloaded. Ready to install on quit.');
+            log.info('Update downloaded. Ready to install.');
             this.window.webContents.send('update-ready', info.version);
         });
     }

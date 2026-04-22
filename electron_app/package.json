@@ -1,6 +1,6 @@
 {
   "name": "xion-pos-desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "XionPOS DevMaster <admin@xionpos.com>",
   "description": "Dolarizado Offline-First POS System",
   "main": "dist/bootstrap.js",
@@ -65,6 +65,15 @@
         "nsis"
       ],
       "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "XionPOS",
+      "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "${productName}_Setup_v${version}.${ext}"
     }
   }
 }

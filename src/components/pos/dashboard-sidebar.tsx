@@ -19,6 +19,9 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 
+// Vite Injected Version
+declare const __APP_VERSION__: string;
+
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard" },
   { icon: ShoppingCart, label: "Ventas" },
@@ -98,7 +101,7 @@ export function DashboardSidebar({ activeItem, onItemClick }: DashboardSidebarPr
       {/* Footer */}
       <div className="border-t border-sidebar-border px-4 py-4">
         {!isCollapsed && (
-          <p className="text-xs text-sidebar-foreground/50">v1.0.0</p>
+          <p className="text-xs text-sidebar-foreground/50">v{__APP_VERSION__}</p>
         )}
       </div>
     </aside>

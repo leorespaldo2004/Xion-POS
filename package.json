@@ -3,6 +3,8 @@
   "version": "1.1.1",
   "private": true,
   "scripts": {
+    "sync-version": "node scripts/sync-version.js",
+    "prebuild": "npm run sync-version",
     "dev": "vite",
     "dev:vite": "npm run dev",
     "dev:electron": "cd electron_app && npm run start",

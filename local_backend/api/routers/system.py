@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from local_backend.core.database import get_session, get_system_config
-from local_backend.core.models import SystemConfig
+from local_backend.core.models import SystemConfig, CashSession
 
 router = APIRouter(prefix="/system", tags=["System"])
 
@@ -50,9 +50,12 @@ def get_system_status(session: Session = Depends(get_session)) -> Dict[str, Any]
     """Devuelve el estado del motor local y la tasa de cambio ancla."""
     try:
         config = get_system_config(session)
+        is_cash_session_open = session.exec(select(CashSession).where(CashSession.status == "open")).first() is not None
+
         return {
             "status": "online",
             "database": "connected",
+            "is_cash_session_open": is_cash_session_open,
             "anchor_currency": config.anchor_currency,
             "current_exchange_rate_bs": config.current_exchange_rate_bs,
             "lockdown_mode": config.lockdown_mode,
