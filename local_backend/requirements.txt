@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlmodel
+pydantic-settings
+# extras for testing
+pytest
+requests
+reportlab
+pillow
+python-multipart

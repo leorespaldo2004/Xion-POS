@@ -1,0 +1,128 @@
+"use client"
+
+import { useState } from "react"
+import { useSystemStatus } from "@/hooks/queries/use-system"
+import { toast } from "sonner"
+import { DashboardSidebar } from "./dashboard-sidebar"
+import { DashboardHeader } from "./dashboard-header"
+import { DashboardContent } from "./dashboard-content"
+import { ArqueoModal } from "./arqueo-modal"
+import { AperturaModal } from "./apertura-modal"
+import { SalesModule } from "./sales-module"
+import { InventoryModule } from "./inventory-module"
+import { DeliveryNotesModule } from "./delivery-notes-module"
+import { UsersModule } from "./users-module"
+import { PurchasesModule } from "./purchases-module"
+import { ClientsModule } from "./clients-module"
+import { SuppliersModule } from "./suppliers-module"
+import { HelpModule } from "./help-module"
+import { PreferencesModule } from "./preferences-module"
+import { SettingsModule } from "./settings-module"
+import { ReportsModule } from "./reports-module"
+import { AccountModule } from "./account-module"
+import { ProfileModule } from "./profile-module"
+import { AuditLogModule } from "./audit-log-module"
+import { PaymentMethodsModule } from "./payment-methods-module"
+
+interface DashboardScreenProps {
+  onLogout: () => void
+  currentUser?: any
+}
+
+export function DashboardScreen({ onLogout, currentUser }: DashboardScreenProps) {
+  const [activeNav, setActiveNav] = useState("Dashboard")
+  const [showArqueo, setShowArqueo] = useState(false)
+  const [showApertura, setShowApertura] = useState(false)
+  const [isSaleLocked, setIsSaleLocked] = useState(false)
+  const { data: config } = useSystemStatus()
+  const exchangeRate = config?.current_exchange_rate_bs || 36.5
+
+  const handleNavigate = (targetNav: string) => {
+    if (activeNav === "Ventas" && targetNav !== "Ventas" && isSaleLocked) {
+      toast.error("Venta en proceso: Debe completar la venta o cancelarla antes de cambiar de módulo.", {
+        duration: 4000,
+      })
+      return
+    }
+    setActiveNav(targetNav)
+  }
+
+  const renderContent = () => {
+    switch (activeNav) {
+      case "Ventas":
+        return <SalesModule onSaleLockChange={setIsSaleLocked} />
+      case "Notas de Entrega":
+        return <DeliveryNotesModule />
+      case "Compras":
+        return <PurchasesModule />
+      case "Inventario":
+        return <InventoryModule />
+      case "Usuarios":
+        return <UsersModule />
+      case "Clientes":
+        return <ClientsModule />
+      case "Proveedores":
+        return <SuppliersModule />
+      case "Métodos de Pago":
+        return <PaymentMethodsModule />
+      case "Reportes":
+        return <ReportsModule />
+      case "Auditoría":
+        return <AuditLogModule />
+      case "Configuraciones":
+        return <SettingsModule />
+      case "Preferencias":
+        return <PreferencesModule />
+      case "Cuenta":
+        return <AccountModule />
+      case "Perfil":
+        return <ProfileModule />
+      case "Ayuda":
+        return <HelpModule />
+      case "Dashboard":
+      default:
+        return (
+          <DashboardContent
+            onOpenCaja={() => setShowApertura(true)}
+            onCloseCaja={() => setShowArqueo(true)}
+          />
+        )
+    }
+  }
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-background">
+      {/* Sidebar */}
+      <DashboardSidebar activeItem={activeNav} onItemClick={handleNavigate} currentUser={currentUser} />
+
+
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <DashboardHeader
+          title={activeNav === "Dashboard" ? "Caja Principal" : activeNav}
+          exchangeRate={exchangeRate}
+          onLogout={onLogout}
+          onNavigate={handleNavigate}
+          currentUser={currentUser}
+          onOpenCaja={() => setShowApertura(true)}
+          onCloseCaja={() => setShowArqueo(true)}
+        />
+
+        {/* Dynamic Content */}
+        {renderContent()}
+      </div>
+
+      {/* Modals */}
+      <AperturaModal
+        open={showApertura}
+        onClose={() => setShowApertura(false)}
+      />
+
+      <ArqueoModal
+        open={showArqueo}
+        onClose={() => setShowArqueo(false)}
+      />
+    </div>
+  )
+}

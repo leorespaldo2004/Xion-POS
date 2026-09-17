@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlmodel
+pydantic
+pydantic-core
+pydantic-settings
+httpx
+python-multipart
+pillow
+reportlab
+qrcode
+# extras for testing
+pytest
+requests
+pytest-cov
+coverage
