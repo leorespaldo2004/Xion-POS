@@ -24,6 +24,7 @@ import {
   Building,
 } from "lucide-react"
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { SecurityApprovalModal } from "@/components/shared/security-approval-modal"
 import type { SalePaymentDTO } from "@/hooks/queries/use-sales"
 
@@ -167,7 +168,41 @@ export function PaymentModal({
     setPayments((prev) => ({ ...prev, ["CREDITO"]: remaining.toFixed(2) }))
   }
 
+  const isCashMethod = (methodId: string): boolean => {
+    if (methodId === "CREDITO") return true
+    const method = getMethod(methodId)
+    if (!method) return false
+    const codeLower = (method.code || "").toLowerCase()
+    const nameLower = (method.name || "").toLowerCase()
+    return (
+      codeLower.includes("efectivo") ||
+      codeLower.includes("cash") ||
+      nameLower.includes("efectivo") ||
+      nameLower.includes("cash")
+    )
+  }
+
+  const checkMissingReferences = (): string[] => {
+    const missing: string[] = []
+    Object.entries(payments).forEach(([methodId, val]) => {
+      const amount = parseFloat(val) || 0
+      if (amount > 0 && !isCashMethod(methodId)) {
+        const ref = (references[methodId] || "").trim()
+        if (!ref) {
+          const method = getMethod(methodId)
+          missing.push(method?.name || methodId)
+        }
+      }
+    })
+    return missing
+  }
+
   const handleProcessSale = () => {
+    const missingRefs = checkMissingReferences()
+    if (missingRefs.length > 0) {
+      toast.error(`Ingrese el N° de comprobante para: ${missingRefs.join(", ")}`)
+      return
+    }
     if (totalAmount > 500) {
       setShowSecurityModal(true)
       return
@@ -361,10 +396,14 @@ export function PaymentModal({
                       </div>
                       {/* Comprobante */}
                       <Input
-                        placeholder="N° Comprobante"
+                        placeholder={isCashMethod(method.code) ? "N° Comprobante (Opcional)" : "N° Comprobante * (Requerido)"}
                         value={references[method.code] ?? ""}
                         onChange={(e) => handleReferenceChange(method.code, e.target.value)}
-                        className="h-8 text-xs font-medium rounded-md border-border"
+                        className={`h-8 text-xs font-medium rounded-md ${
+                          !isCashMethod(method.code) && parseFloat(payments[method.code] || "0") > 0 && !(references[method.code] || "").trim()
+                            ? "border-destructive ring-1 ring-destructive/50"
+                            : "border-border"
+                        }`}
                       />
                       {/* Nota */}
                       <Input

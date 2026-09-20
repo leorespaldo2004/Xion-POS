@@ -191,6 +191,7 @@ class TestSaleRegistration:
                     "currency": "VES",
                     "amount_tendered": 483.8,   # 13.2 USD * 36.65
                     "amount_usd": 13.2,
+                    "reference_code": "REF-PM-1234",
                 },
             ],
             "items": [

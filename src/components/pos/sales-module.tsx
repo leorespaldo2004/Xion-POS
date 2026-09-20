@@ -480,7 +480,17 @@ export function SalesModule({ onSaleLockChange }: SalesModuleProps = {}) {
       return
     }
 
+    const allowNegativeStock = config?.allow_negative_stock ?? false
+    const isPhysical = product.product_type === "physical" || !product.product_type
     const existingItem = cart.find((item) => item.id === product.id)
+    const currentCartQty = existingItem ? existingItem.cart_quantity : 0
+    const availableStock = product.cached_stock_quantity ?? 0
+
+    if (!allowNegativeStock && isPhysical && (currentCartQty + 1) > availableStock) {
+      toast.error(`Stock insuficiente para "${product.name}". Disponible: ${availableStock}`)
+      return
+    }
+
     if (existingItem) {
       setCart(
         cart.map((item) =>
@@ -493,11 +503,20 @@ export function SalesModule({ onSaleLockChange }: SalesModuleProps = {}) {
   }
 
   const updateQuantity = (productId: string, delta: number) => {
+    const allowNegativeStock = config?.allow_negative_stock ?? false
     setCart(
       cart
         .map((item) => {
           if (item.id === productId) {
             const newQuantity = item.cart_quantity + delta
+            const isPhysical = item.product_type === "physical" || !item.product_type
+            const availableStock = item.cached_stock_quantity ?? 0
+
+            if (delta > 0 && !allowNegativeStock && isPhysical && newQuantity > availableStock) {
+              toast.error(`Stock insuficiente para "${item.name}". Disponible: ${availableStock}`)
+              return item
+            }
+
             return newQuantity > 0 ? { ...item, cart_quantity: newQuantity } : null
           }
           return item
@@ -655,6 +674,12 @@ export function SalesModule({ onSaleLockChange }: SalesModuleProps = {}) {
                         exchangeRate={exchangeRate}
                         onUpdateQuantity={updateQuantity}
                         onSetQuantity={(id: string, qty: number) => {
+                          const targetItem = cart.find(i => i.id === id)
+                          const allowNegativeStock = config?.allow_negative_stock ?? false
+                          if (targetItem && (targetItem.product_type === "physical" || !targetItem.product_type) && !allowNegativeStock && qty > (targetItem.cached_stock_quantity ?? 0)) {
+                            toast.error(`Stock insuficiente para "${targetItem.name}". Disponible: ${targetItem.cached_stock_quantity ?? 0}`)
+                            return
+                          }
                           setCart(cart.map(i => i.id === id ? { ...i, cart_quantity: qty } : i))
                         }}
                         onBlurQuantity={() => setCart(c => c.filter(i => i.cart_quantity > 0))}

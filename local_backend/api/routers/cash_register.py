@@ -7,6 +7,7 @@ from typing import List, Optional, Dict
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select, func
 
@@ -221,20 +222,48 @@ def close_session(payload: SessionCloseDTO, session: Session = Depends(get_sessi
         "report_path": report_path
     }
 
-@router.post("/open-drawer", status_code=status.HTTP_200_OK)
-def open_drawer(payload: DrawerOpenDTO, session: Session = Depends(get_session)):
-    """
-    Simula la apertura física del cajón de dinero y registra la acción en la bitácora de auditoría.
-    Al ser una acción crítica que vulnera el dinero físico, se registra como CRITICAL.
-    """
-    # En producción aquí se enviaría la secuencia ESC/POS a la impresora térmica
-    # para activar el solenoide del cajón de dinero.
-    fire_audit_log(
-        module="cash_register",
-        action="DRAWER_OPEN",
-        description=f"Apertura manual de gaveta de dinero. Motivo: {payload.reason}",
-        severity="CRITICAL",
-        metadata={"reason": payload.reason}
+@router.get("/session/{session_id}/report")
+def get_session_report(session_id: str, session: Session = Depends(get_session)):
+    cash_session = session.get(CashSession, session_id)
+    if not cash_session:
+        raise HTTPException(status_code=404, detail="Sesión de caja no encontrada")
+    
+    reports_dir = os.path.join(os.getcwd(), "reports")
+    filename = f"cierre_{cash_session.id[:8]}.pdf"
+    
+    if os.path.exists(reports_dir):
+        for f in os.listdir(reports_dir):
+            if f.startswith(f"cierre_{cash_session.id[:8]}") and f.endswith(".pdf"):
+                filepath = os.path.join(reports_dir, f)
+                return FileResponse(
+                    filepath,
+                    media_type="application/pdf",
+                    filename=f,
+                    headers={"Content-Disposition": f"inline; filename={f}"}
+                )
+    
+    # Regenerar si no existe el archivo físico
+    payments_summary = json.loads(cash_session.payments_summary_json) if cash_session.payments_summary_json else {}
+    os.makedirs(reports_dir, exist_ok=True)
+    report_name = f"cierre_{cash_session.id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    report_path = os.path.join(reports_dir, report_name)
+    
+    session_data = {
+        "user_name": cash_session.user_name,
+        "status": cash_session.status,
+        "opening_time": cash_session.opening_time.strftime("%d/%m/%Y %H:%M") if cash_session.opening_time else "",
+        "closing_time": cash_session.closing_time.strftime("%d/%m/%Y %H:%M") if cash_session.closing_time else "",
+        "opening_balance_usd": cash_session.opening_balance_usd,
+        "closing_balance_usd": cash_session.closing_balance_usd,
+        "total_sales_usd": cash_session.total_sales_usd,
+        "total_tax_usd": cash_session.total_tax_usd,
+        "payments_summary": payments_summary
+    }
+    generate_closing_report_pdf(session_data, report_path)
+    return FileResponse(
+        report_path,
+        media_type="application/pdf",
+        filename=report_name,
+        headers={"Content-Disposition": f"inline; filename={report_name}"}
     )
-    return {"detail": "Gaveta de dinero abierta exitosamente"}
 

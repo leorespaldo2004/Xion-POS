@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from typing import Generator
-from sqlmodel import SQLModel, create_engine, Session, select
+from sqlmodel import SQLModel, create_engine, Session, select, text
 from local_backend.core.config import settings
 from local_backend.core.models import SystemConfig, PaymentMethodModel
 
@@ -23,6 +23,18 @@ def init_db() -> None:
     """
     settings.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
+
+    # Migraciones automáticas de columnas para SQLite
+    with engine.connect() as conn:
+        for table_name, table in SQLModel.metadata.tables.items():
+            res = conn.execute(text(f"PRAGMA table_info('{table_name}')")).fetchall()
+            if res:
+                existing_cols = [row[1] for row in res]
+                for col in table.columns:
+                    if col.name not in existing_cols:
+                        col_type = col.type.compile(engine.dialect)
+                        conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}'))
+                        conn.commit()
 
     with Session(engine) as session:
         config = session.exec(select(SystemConfig).limit(1)).first()

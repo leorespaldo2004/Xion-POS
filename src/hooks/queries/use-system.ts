@@ -4,6 +4,7 @@ import { localApiClient } from '@/lib/api-client';
 export interface SystemStatus {
   status: string;
   database: string;
+  is_cash_session_open?: boolean;
   anchor_currency: string;
   current_exchange_rate_bs: number;
   lockdown_mode: boolean;

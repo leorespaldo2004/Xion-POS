@@ -40,32 +40,32 @@ def get_dashboard_stats(
     # 1. Ventas
     sales_query = select(Sale).where(Sale.created_at >= start_date)
     sales = session.exec(sales_query).all()
-    total_sales_usd = sum(s.total_amount_usd for s in sales)
-    total_sales_bs = sum(s.total_amount_bs for s in sales)
+    total_sales_usd = sum((s.total_amount_usd or 0.0) for s in sales)
+    total_sales_bs = sum((s.total_amount_bs or 0.0) for s in sales)
     
     # 2. Compras
     purchases_query = select(Purchase).where(Purchase.created_at >= start_date)
     purchases = session.exec(purchases_query).all()
-    total_purchases_usd = sum(p.total_amount_usd for p in purchases)
-    total_purchases_bs = sum(p.total_amount_bs for p in purchases)
+    total_purchases_usd = sum((p.total_amount_usd or 0.0) for p in purchases)
+    total_purchases_bs = sum((p.total_amount_bs or 0.0) for p in purchases)
     
     # 3. Inventario
     products = session.exec(select(Product)).all()
-    inventory_value_usd = sum((p.cached_stock_quantity * p.price_usd) for p in products)
-    low_stock_items = sum(1 for p in products if p.cached_stock_quantity <= p.min_stock_alert)
-    exchange_rate = sales[0].exchange_rate if sales else 36.5
+    inventory_value_usd = sum(((p.cached_stock_quantity or 0) * (p.price_usd or 0.0)) for p in products)
+    low_stock_items = sum(1 for p in products if (p.cached_stock_quantity or 0) <= (p.min_stock_alert or 0))
+    exchange_rate = getattr(sales[0], "exchange_rate", 36.5) if sales else 36.5
     inventory_value_bs = inventory_value_usd * exchange_rate
     
     # 4. Clientes
     clients = session.exec(select(Client)).all()
     active_clients = len(clients)
-    new_clients = sum(1 for c in clients if c.created_at >= start_date)
-    total_debt = sum(c.current_debt for c in clients)
+    new_clients = sum(1 for c in clients if c.created_at and c.created_at >= start_date)
+    total_debt = sum((c.current_debt or 0.0) for c in clients)
     
     # 5. Proveedores
     suppliers = session.exec(select(Supplier)).all()
     total_suppliers = len(suppliers)
-    active_suppliers = sum(1 for s in suppliers if s.is_active)
+    active_suppliers = sum(1 for s in suppliers if getattr(s, "is_active", True))
     
     # 6. Top Productos
     stmt_top = (

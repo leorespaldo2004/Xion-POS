@@ -115,6 +115,29 @@ def _validate_payment_total(payments: List[SalePaymentDTO], total_usd: float) ->
         )
 
 
+def _validate_payment_references(payments: List[SalePaymentDTO]) -> None:
+    """
+    Valida que los métodos de pago que no sean en efectivo tengan un número de comprobante/referencia.
+    """
+    for p in payments:
+        if p.amount_usd <= 0:
+            continue
+        method_code = (p.payment_method_id or "").lower()
+        method_label = (p.payment_method_label or "").lower()
+        is_cash = (
+            "efectivo" in method_code
+            or "cash" in method_code
+            or "efectivo" in method_label
+            or "cash" in method_label
+            or p.payment_method_id == "CREDITO"
+        )
+        if not is_cash and (not p.reference_code or not p.reference_code.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Debe ingresar el número de comprobante para el método '{p.payment_method_label}'."
+            )
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -141,6 +164,9 @@ def register_sale(payload: SaleCreateDTO, session: Session = Depends(get_session
     # Validar métodos de pago contra la configuración activa
     method_ids = [p.payment_method_id for p in payload.payments]
     _validate_payment_methods(method_ids, session)
+
+    # Validar comprobantes obligatorios para no-efectivo
+    _validate_payment_references(payload.payments)
 
     # Validar que el pago cubra el total
     _validate_payment_total(payload.payments, payload.total_amount_usd)

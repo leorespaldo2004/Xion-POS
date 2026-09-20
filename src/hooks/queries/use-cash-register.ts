@@ -1,6 +1,6 @@
 // filepath: src/hooks/queries/use-cash-register.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { localApiClient } from "@/lib/api-client"
+import { localApiClient, API_BASE_URL } from "@/lib/api-client"
 import { toast } from "sonner"
 
 export interface CashSession {
@@ -65,13 +65,14 @@ export function useCloseSession() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["active-session"] })
-      queryClient.invalidateQueries({ queryKey: ["system-status"] }) // El Dashboard depende de esto
-      toast.success("Caja cerrada exitosamente")
+      queryClient.invalidateQueries({ queryKey: ["system-status"] })
+      queryClient.invalidateQueries({ queryKey: ["session-summary"] })
+      queryClient.invalidateQueries({ queryKey: ["sales"] })
+      toast.success("Caja cerrada exitosamente. Imprimiendo reporte...")
       
-      // Intentar abrir el PDF si es posible (En Electron esto suele requerir IPC)
-      if (data.report_path) {
-        console.log("Reporte generado en:", data.report_path)
-        // Opcional: Notificar al proceso principal para abrir el PDF
+      const sessionId = data?.session?.id
+      if (sessionId) {
+        window.open(`${API_BASE_URL}/cash-register/session/${sessionId}/report`, "_blank")
       }
     },
     onError: (error: any) => {
