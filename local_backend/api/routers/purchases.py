@@ -20,6 +20,10 @@ class PurchaseCreateDTO(BaseModel):
     supplier_name: str
     total_amount_usd: float
     total_amount_bs: float
+    payment_type: Optional[str] = "cash"
+    paid_amount_usd: Optional[float] = None
+    credit_days: Optional[int] = 0
+    notes: Optional[str] = None
     items: List[PurchaseItemDTO]
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -28,6 +32,21 @@ def register_purchase(payload: PurchaseCreateDTO, session: Session = Depends(get
         raise HTTPException(status_code=400, detail="Purchase must contain at least one item")
 
     try:
+        pay_type = payload.payment_type or "cash"
+        if pay_type == "cash":
+            paid_usd = payload.total_amount_usd
+            pending_usd = 0.0
+            pay_status = "paid"
+        else:
+            paid_usd = payload.paid_amount_usd if payload.paid_amount_usd is not None else 0.0
+            pending_usd = max(0.0, payload.total_amount_usd - paid_usd)
+            if pending_usd <= 0.001:
+                pay_status = "paid"
+            elif paid_usd > 0.0:
+                pay_status = "partial"
+            else:
+                pay_status = "pending"
+
         # Create Purchase
         new_purchase = Purchase(
             id=str(uuid4()),
@@ -35,6 +54,12 @@ def register_purchase(payload: PurchaseCreateDTO, session: Session = Depends(get
             supplier_name=payload.supplier_name,
             total_amount_usd=payload.total_amount_usd,
             total_amount_bs=payload.total_amount_bs,
+            payment_type=pay_type,
+            payment_status=pay_status,
+            paid_amount_usd=paid_usd,
+            pending_amount_usd=pending_usd,
+            credit_days=payload.credit_days or 0,
+            notes=payload.notes,
             is_synced=False
         )
         session.add(new_purchase)

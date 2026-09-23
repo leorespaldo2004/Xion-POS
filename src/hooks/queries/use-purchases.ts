@@ -9,9 +9,14 @@ export interface PurchaseItemDTO {
 }
 
 export interface CreatePurchaseDTO {
+  supplier_id?: string;
   supplier_name: string;
   total_amount_usd: number;
   total_amount_bs: number;
+  payment_type?: "cash" | "credit";
+  paid_amount_usd?: number;
+  credit_days?: number;
+  notes?: string;
   items: PurchaseItemDTO[];
 }
 

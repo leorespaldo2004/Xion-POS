@@ -153,6 +153,12 @@ class Purchase(SQLModel, table=True):
     supplier_name: str = Field(nullable=False)
     total_amount_usd: float = Field(default=0.0)
     total_amount_bs: float = Field(default=0.0)
+    payment_type: str = Field(default="cash", nullable=False) # 'cash' (Contado) | 'credit' (Crédito)
+    payment_status: str = Field(default="paid", nullable=False) # 'paid', 'pending', 'partial'
+    paid_amount_usd: float = Field(default=0.0, nullable=False)
+    pending_amount_usd: float = Field(default=0.0, nullable=False)
+    credit_days: int = Field(default=0, nullable=False)
+    notes: Optional[str] = Field(default=None)
     is_synced: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

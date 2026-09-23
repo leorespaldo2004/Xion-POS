@@ -23,8 +23,25 @@ import {
   Building2,
   Box,
   LayoutGrid,
-  List
+  List,
+  Banknote,
+  Clock,
+  CheckCircle2,
+  CreditCard,
+  Calendar,
+  AlertCircle,
+  Receipt,
+  Wallet
 } from "lucide-react"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 import { ProductImage } from "./product-image"
 import { ProductGridList } from "./product-grid-list"
@@ -258,7 +275,30 @@ export function PurchasesModule() {
   )
   const totalBs = subtotal * exchangeRate
 
-  const handleRegisterPurchase = async () => {
+  // Estados para Modal de Liquidación y Crédito (Cuentas por Pagar)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentType, setPaymentType] = useState<"cash" | "credit">("cash")
+  const [paidAmountInputUSD, setPaidAmountInputUSD] = useState("")
+  const [creditDays, setCreditDays] = useState<number>(30)
+  const [purchaseNotes, setPurchaseNotes] = useState("")
+
+  const handleOpenPaymentModal = () => {
+    if (purchaseItems.length === 0) {
+      toast.error("Agregue al menos un producto a la orden")
+      return
+    }
+    if (!supplierName.trim()) {
+      toast.error("Seleccione o ingrese un proveedor válido")
+      return
+    }
+    setPaymentType("cash")
+    setPaidAmountInputUSD("")
+    setCreditDays(30)
+    setPurchaseNotes("")
+    setShowPaymentModal(true)
+  }
+
+  const handleConfirmPurchase = async () => {
     if (purchaseItems.length === 0) {
       toast.error("Agregue al menos un producto a la orden")
       return
@@ -268,11 +308,20 @@ export function PurchasesModule() {
       return
     }
 
+    const selectedSupplier = dbSuppliers.find(s => s.name === supplierName)
+    const numericPaidUSD = paymentType === "cash" ? subtotal : parseLocalFloat(paidAmountInputUSD)
+    const pendingUSD = Math.max(0, subtotal - numericPaidUSD)
+
     try {
       await createPurchase.mutateAsync({
+        supplier_id: selectedSupplier?.id,
         supplier_name: supplierName,
         total_amount_usd: subtotal,
         total_amount_bs: totalBs,
+        payment_type: paymentType,
+        paid_amount_usd: numericPaidUSD,
+        credit_days: paymentType === "credit" ? creditDays : 0,
+        notes: purchaseNotes.trim() || undefined,
         items: purchaseItems.map(item => ({
           product_id: item.id!,
           quantity: item.quantity,
@@ -281,9 +330,15 @@ export function PurchasesModule() {
         }))
       })
 
-      toast.success("Compra procesada y costos actualizados exitosamente.")
+      if (paymentType === "credit") {
+        toast.success(`Entrada registrada. Cuenta por Pagar creada por $${formatLocalNumber(pendingUSD)} (Vence en ${creditDays} días).`)
+      } else {
+        toast.success("Compra pagada de CONTADO. Recepción de inventario registrada con éxito.")
+      }
+
       setPurchaseItems([])
       setSupplierName("")
+      setShowPaymentModal(false)
     } catch (e: any) {
       toast.error(e.response?.data?.detail || "Error al procesar recepción de inventario")
     }
@@ -572,16 +627,206 @@ export function PurchasesModule() {
             </div>
           </div>
 
-          {/* Botón de Acción Principal estilo Sales Module */}
+          {/* Botón de Acción Principal */}
           <Button
             disabled={purchaseItems.length === 0 || !supplierName.trim() || createPurchase.isPending}
-            onClick={handleRegisterPurchase}
+            onClick={handleOpenPaymentModal}
             className="w-full h-11 font-black text-sm uppercase rounded-xl shadow-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 mt-1"
           >
             {createPurchase.isPending ? "Validando Transacción..." : "Liquidar Recepción de Ingreso"}
           </Button>
         </CardContent>
       </Card>
+
+      {/* Modal de Liquidación / Condición de Pago y Cuentas por Pagar */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="sm:max-w-[540px] border-2 border-border shadow-2xl rounded-2xl bg-card p-6">
+          <DialogHeader className="pb-3 border-b border-border/60">
+            <DialogTitle className="text-lg font-black flex items-center gap-2 text-foreground">
+              <Receipt className="w-5 h-5 text-primary" />
+              Condición de Pago y Recepción de Lote
+            </DialogTitle>
+            <DialogDescription className="text-xs font-semibold text-muted-foreground">
+              Seleccione si la compra se liquida de contado o si genera una Cuenta por Pagar al Proveedor.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Resumen del Lote */}
+          <div className="my-2 p-3 bg-muted/40 border-2 border-border/60 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Proveedor Origen</p>
+              <p className="text-sm font-black text-foreground truncate max-w-[220px]">{supplierName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Total Lote</p>
+              <p className="text-lg font-black text-primary leading-tight">${formatLocalNumber(subtotal)}</p>
+              <p className="text-[11px] font-bold text-muted-foreground font-mono leading-none">Bs {formatLocalNumber(totalBs)}</p>
+            </div>
+          </div>
+
+          {/* Selección de Condición de Pago */}
+          <div className="space-y-3">
+            <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+              Modalidad de Operación
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Opción Contado */}
+              <div
+                onClick={() => setPaymentType("cash")}
+                className={cn(
+                  "p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1.5 select-none relative",
+                  paymentType === "cash"
+                    ? "border-primary bg-primary/10 shadow-md ring-1 ring-primary"
+                    : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase flex items-center gap-1.5 text-foreground">
+                    <Banknote className="w-4 h-4 text-emerald-600" /> Contado
+                  </span>
+                  {paymentType === "cash" && <CheckCircle2 className="w-4 h-4 text-primary fill-primary/20" />}
+                </div>
+                <p className="text-[11px] font-medium text-muted-foreground leading-tight">
+                  Pagado 100% de inmediato. No genera deudas pendientes.
+                </p>
+              </div>
+
+              {/* Opción Crédito */}
+              <div
+                onClick={() => setPaymentType("credit")}
+                className={cn(
+                  "p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1.5 select-none relative",
+                  paymentType === "credit"
+                    ? "border-amber-600 bg-amber-500/10 shadow-md ring-1 ring-amber-600"
+                    : "border-border/60 bg-muted/20 hover:border-amber-600/40 hover:bg-muted/40"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase flex items-center gap-1.5 text-foreground">
+                    <Clock className="w-4 h-4 text-amber-600" /> A Crédito
+                  </span>
+                  {paymentType === "credit" && <CheckCircle2 className="w-4 h-4 text-amber-600 fill-amber-600/20" />}
+                </div>
+                <p className="text-[11px] font-medium text-muted-foreground leading-tight">
+                  Ingresa mercancía y registra una Cuenta por Pagar.
+                </p>
+              </div>
+            </div>
+
+            {/* Configuración de Crédito */}
+            {paymentType === "credit" && (
+              <div className="mt-3 p-3 bg-amber-500/5 border-2 border-amber-500/30 rounded-xl space-y-3 transition-all">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Abono Inicial */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-foreground uppercase tracking-wide">
+                      Abono Inicial (USD)
+                    </label>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-2.5 text-xs text-muted-foreground font-black pointer-events-none">$</span>
+                      <Input
+                        type="text"
+                        placeholder="0,00"
+                        value={paidAmountInputUSD}
+                        onChange={(e) => setPaidAmountInputUSD(e.target.value)}
+                        className="h-9 pl-7 text-xs font-black font-mono border-2 border-border bg-background focus:border-amber-600 focus:ring-amber-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Saldo Pendiente (Cuenta por Pagar) */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-black text-amber-700 uppercase tracking-wide">
+                      Cuenta por Pagar (USD)
+                    </label>
+                    <div className="h-9 px-3 bg-amber-500/10 border-2 border-amber-500/40 rounded-md flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-800 font-mono">
+                        ${formatLocalNumber(Math.max(0, subtotal - parseLocalFloat(paidAmountInputUSD)))}
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-900/80 font-mono">
+                        Bs {formatLocalNumber(Math.max(0, subtotal - parseLocalFloat(paidAmountInputUSD)) * exchangeRate)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Días de Crédito & Vencimiento */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-black text-foreground uppercase tracking-wide">
+                      Plazo de Crédito (Días)
+                    </label>
+                    <span className="text-[10px] font-bold text-amber-800 font-mono flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Vence: {new Date(Date.now() + creditDays * 24 * 60 * 60 * 1000).toLocaleDateString("es-VE")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {[7, 15, 30, 45, 60].map((days) => (
+                      <Button
+                        key={days}
+                        type="button"
+                        variant={creditDays === days ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCreditDays(days)}
+                        className={cn(
+                          "h-7 text-xs font-black px-2.5 rounded-md flex-1",
+                          creditDays === days
+                            ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
+                            : "border-border hover:bg-amber-500/10"
+                        )}
+                      >
+                        {days}d
+                      </Button>
+                    ))}
+                    <div className="w-16">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={creditDays}
+                        onChange={(e) => setCreditDays(parseInt(e.target.value, 10) || 1)}
+                        className="h-7 text-xs font-black text-center font-mono border-2 border-border p-0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Factura / Observaciones */}
+            <div className="space-y-1 pt-1">
+              <label className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                Nro. Factura Proveedor / Notas (Opcional)
+              </label>
+              <Input
+                placeholder="Ej. Factura #F-9023, Nota de entrega #102..."
+                value={purchaseNotes}
+                onChange={(e) => setPurchaseNotes(e.target.value)}
+                className="h-9 text-xs font-bold border-2 border-border bg-background"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 pt-3 border-t border-border/60 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPaymentModal(false)}
+              className="h-10 text-xs font-black uppercase rounded-xl border-2 border-border"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmPurchase}
+              disabled={createPurchase.isPending}
+              className="h-10 text-xs font-black uppercase rounded-xl shadow-md bg-primary text-primary-foreground hover:bg-primary/90 flex-1"
+            >
+              {createPurchase.isPending ? "Procesando Recepción..." : "Confirmar e Ingresar Inventario"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
