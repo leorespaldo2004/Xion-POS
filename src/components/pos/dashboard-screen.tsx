@@ -23,6 +23,7 @@ import { AccountModule } from "./account-module"
 import { ProfileModule } from "./profile-module"
 import { AuditLogModule } from "./audit-log-module"
 import { PaymentMethodsModule } from "./payment-methods-module"
+import { ReturnsModule } from "./returns-module"
 
 interface DashboardScreenProps {
   onLogout: () => void
@@ -33,6 +34,7 @@ export function DashboardScreen({ onLogout, currentUser }: DashboardScreenProps)
   const [activeNav, setActiveNav] = useState("Dashboard")
   const [showArqueo, setShowArqueo] = useState(false)
   const [showApertura, setShowApertura] = useState(false)
+  const [showReturnsModal, setShowReturnsModal] = useState(false)
   const [isSaleLocked, setIsSaleLocked] = useState(false)
   const { data: config } = useSystemStatus()
   const exchangeRate = config?.current_exchange_rate_bs || 36.5
@@ -42,6 +44,10 @@ export function DashboardScreen({ onLogout, currentUser }: DashboardScreenProps)
       toast.error("Venta en proceso: Debe completar la venta o cancelarla antes de cambiar de módulo.", {
         duration: 4000,
       })
+      return
+    }
+    if (targetNav === "Devoluciones") {
+      setShowReturnsModal(true)
       return
     }
     setActiveNav(targetNav)
@@ -122,6 +128,11 @@ export function DashboardScreen({ onLogout, currentUser }: DashboardScreenProps)
       <ArqueoModal
         open={showArqueo}
         onClose={() => setShowArqueo(false)}
+      />
+
+      <ReturnsModule
+        isOpen={showReturnsModal}
+        onClose={() => setShowReturnsModal(false)}
       />
     </div>
   )

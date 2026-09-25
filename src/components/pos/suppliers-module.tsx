@@ -79,10 +79,13 @@ const categories = [
   "Varios",
 ]
 
+import { ConfirmModal } from "@/components/shared/confirm-modal"
+
 export function SuppliersModule() {
   const [searchTerm, setSearchTerm] = useState("")
   const [showDialog, setShowDialog] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
+  const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null)
 
   const { data: suppliers = [] } = useSuppliers()
   const createMutation = useCreateSupplier()
@@ -177,14 +180,18 @@ export function SuppliersModule() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Está seguro de eliminar este proveedor de forma permanente?")) {
-      try {
-        await deleteMutation.mutateAsync(id)
-        toast.success("Proveedor eliminado")
-      } catch (e) {
-        toast.error("Error al eliminar proveedor")
-      }
+  const handleDelete = (supplier: Supplier) => {
+    setDeletingSupplier(supplier)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingSupplier) return
+    try {
+      await deleteMutation.mutateAsync(deletingSupplier.id)
+      toast.success(`Proveedor ${deletingSupplier.name} eliminado correctamente`)
+      setDeletingSupplier(null)
+    } catch (e) {
+      toast.error("Error al eliminar proveedor")
     }
   }
 
@@ -316,7 +323,7 @@ export function SuppliersModule() {
                       <Button size="icon" variant="ghost" className="hover:bg-primary/10 hover:text-primary" onClick={() => openDialog(supplier)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(supplier.id)}>
+                      <Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(supplier)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -471,6 +478,17 @@ export function SuppliersModule() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={!!deletingSupplier}
+        onClose={() => setDeletingSupplier(null)}
+        onConfirm={handleConfirmDelete}
+        variant="danger"
+        title="¿Eliminar proveedor?"
+        description={`¿Estás seguro de que deseas eliminar a ${deletingSupplier?.name || "este proveedor"}? Esta acción no se puede deshacer.`}
+        confirmText="Sí, eliminar"
+        cancelText="No, conservar"
+      />
     </div>
   )
 }

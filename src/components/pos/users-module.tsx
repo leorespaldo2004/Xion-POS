@@ -92,6 +92,7 @@ export function UsersModule() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [badgeUser, setBadgeUser] = useState<User | null>(null)
   const [isBadgeOpen, setIsBadgeOpen] = useState(false)
+  const [deletingUser, setDeletingUser] = useState<User | null>(null)
 
   const handleShowBadge = (user: User) => {
     setBadgeUser(user)
@@ -171,14 +172,18 @@ export function UsersModule() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Estás seguro de eliminar este usuario?")) {
-      try {
-        await deleteMutation.mutateAsync(id)
-        toast.success("Usuario eliminado")
-      } catch (e) {
-        toast.error("Error al eliminar el usuario")
-      }
+  const handleDelete = (user: User) => {
+    setDeletingUser(user)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingUser) return
+    try {
+      await deleteMutation.mutateAsync(deletingUser.id)
+      toast.success(`Usuario ${deletingUser.name} eliminado correctamente`)
+      setDeletingUser(null)
+    } catch (e) {
+      toast.error("Error al eliminar el usuario")
     }
   }
 
@@ -345,7 +350,7 @@ export function UsersModule() {
                     <Button variant="ghost" size="icon" className="hover:bg-primary/10 hover:text-primary" onClick={() => handleOpenDialog(user)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="hover:bg-destructive/10 text-destructive" onClick={() => handleDelete(user.id)}>
+                    <Button variant="ghost" size="icon" className="hover:bg-destructive/10 text-destructive" onClick={() => handleDelete(user)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -519,6 +524,17 @@ export function UsersModule() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={!!deletingUser}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={handleConfirmDelete}
+        variant="danger"
+        title="¿Eliminar usuario?"
+        description={`¿Estás seguro de que deseas eliminar a ${deletingUser?.name || "este usuario"}? Perderá el acceso al sistema de forma permanente.`}
+        confirmText="Sí, eliminar"
+        cancelText="No, conservar"
+      />
     </div>
   )
 }

@@ -379,3 +379,42 @@ class DeliveryNoteItem(SQLModel, table=True):
     quantity: float = Field(nullable=False)
     unit_price_usd: float = Field(default=0.0)
     total_price_usd: float = Field(default=0.0)
+
+
+class SaleReturn(SQLModel, table=True):
+    """
+    Registro de Devoluciones / Notas de Crédito sobre una venta original.
+    """
+    __tablename__: str = "sale_returns"
+
+    id: Optional[str] = Field(default=None, primary_key=True, index=True)
+    sale_id: str = Field(nullable=False, foreign_key="sale.id", index=True)
+    user_id: str = Field(nullable=False, foreign_key="user.id", index=True)
+    supervisor_id: Optional[str] = Field(default=None, foreign_key="user.id", index=True)
+    subtotal_usd: float = Field(default=0.0)
+    tax_amount_usd: float = Field(default=0.0)
+    total_amount_usd: float = Field(default=0.0)
+    total_amount_bs: float = Field(default=0.0)
+    exchange_rate: float = Field(default=36.5, nullable=False)
+    reason: str = Field(nullable=False)
+    cash_session_id: Optional[str] = Field(default=None, foreign_key="cash_sessions.id", index=True)
+    is_synced: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SaleReturnItem(SQLModel, table=True):
+    """
+    Detalle de ítems devueltos dentro de un ticket de devolución.
+    """
+    __tablename__: str = "sale_return_items"
+
+    id: Optional[str] = Field(default=None, primary_key=True, index=True)
+    return_id: str = Field(nullable=False, foreign_key="sale_returns.id", index=True)
+    sale_item_id: str = Field(nullable=False, foreign_key="saleitem.id")
+    product_id: str = Field(nullable=False, foreign_key="product.id")
+    product_name: str = Field(nullable=False)
+    quantity: float = Field(nullable=False)
+    unit_price_usd: float = Field(default=0.0)
+    tax_amount_usd: float = Field(default=0.0)
+    total_price_usd: float = Field(default=0.0)
+

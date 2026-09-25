@@ -547,6 +547,7 @@ export function PaymentModal({
         onClose={() => setShowSecurityModal(false)}
         onApproved={() => executeConfirm()}
         requiredRole="manager"
+        actionRequired="LARGE_SALE"
         actionDescription={`La venta por monto elevado ($${totalAmount.toFixed(2)}) requiere autorización de un supervisor.`}
       />
     </Dialog>

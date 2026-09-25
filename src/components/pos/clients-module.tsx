@@ -67,12 +67,15 @@ const clientSchema = z.object({
   is_active: z.boolean().default(true),
 })
 
+import { ConfirmModal } from "@/components/shared/confirm-modal"
+
 type ClientFormValues = z.infer<typeof clientSchema>
 
 export function ClientsModule() {
   const [searchTerm, setSearchTerm] = useState("")
   const [showDialog, setShowDialog] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
   const { data: clients = [] } = useClients()
   const createMutation = useCreateClient()
@@ -162,14 +165,18 @@ export function ClientsModule() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Está seguro de eliminar este cliente de forma permanente?")) {
-      try {
-        await deleteMutation.mutateAsync(id)
-        toast.success("Cliente eliminado")
-      } catch (e) {
-        toast.error("Error al eliminar cliente")
-      }
+  const handleDelete = (client: Client) => {
+    setDeletingClient(client)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingClient) return
+    try {
+      await deleteMutation.mutateAsync(deletingClient.id)
+      toast.success(`Cliente ${deletingClient.name} eliminado correctamente`)
+      setDeletingClient(null)
+    } catch (e) {
+      toast.error("Error al eliminar cliente")
     }
   }
 
@@ -297,7 +304,7 @@ export function ClientsModule() {
                       <Button size="icon" variant="ghost" onClick={() => openDialog(client)} className="hover:bg-primary/10 hover:text-primary">
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleDelete(client.id)} className="text-destructive hover:bg-destructive/10">
+                      <Button size="icon" variant="ghost" onClick={() => handleDelete(client)} className="text-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -445,6 +452,17 @@ export function ClientsModule() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        isOpen={!!deletingClient}
+        onClose={() => setDeletingClient(null)}
+        onConfirm={handleConfirmDelete}
+        variant="danger"
+        title="¿Eliminar cliente?"
+        description={`¿Estás seguro de que deseas eliminar a ${deletingClient?.name || "este cliente"}? Esta acción no se puede deshacer.`}
+        confirmText="Sí, eliminar"
+        cancelText="No, conservar"
+      />
     </div>
   )
 }

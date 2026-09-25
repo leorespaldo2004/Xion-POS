@@ -51,6 +51,7 @@ export interface Sale {
   total_amount_usd: number
   total_amount_bs: number
   exchange_rate: number
+  status?: string
   created_at: string
 }
 

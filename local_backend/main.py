@@ -19,6 +19,7 @@ from local_backend.api.routers.audit import router as audit_router
 from local_backend.api.routers.supervisor_auth import router as supervisor_auth_router
 from local_backend.api.routers.payment_methods import router as payment_methods_router
 from local_backend.api.routers.delivery_notes import router as delivery_notes_router
+from local_backend.api.routers.returns import router as returns_router
 
 
 from contextlib import asynccontextmanager
@@ -90,6 +91,7 @@ app.include_router(audit_router, prefix="/api/v1")
 app.include_router(supervisor_auth_router, prefix="/api/v1")
 app.include_router(payment_methods_router, prefix="/api/v1")
 app.include_router(delivery_notes_router, prefix="/api/v1")
+app.include_router(returns_router, prefix="/api/v1")
 
 
 
