@@ -57,6 +57,7 @@ import {
 } from "@/hooks/queries/use-users"
 import { toast } from "sonner"
 import { SupervisorBadge } from "./supervisor-badge"
+import { ConfirmModal } from "@/components/shared/confirm-modal"
 
 
 const userSchema = z.object({
