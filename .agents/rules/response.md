@@ -43,3 +43,12 @@ El código generado en Antigravity debe cumplir rigurosamente con normativas y c
 * **Tipado Estricto:** Uso obligatorio de tipado estático (TypeScript, Python type hints, etc.) para prevenir errores de ejecución y facilitar el análisis estático.
 * **Manejo Robusto de Excepciones:** Captura controlada de errores sin exponer trazas de pila (*stack traces*) sensibles hacia el cliente final; registro estructurado (*logging*) de excepciones para auditoría.
 * **Docs-as-Code y Documentación Mínima:** Comentarios y documentación estrictamente limitados a lógica compleja o de negocio no evidente, cumpliendo con los estándares de documentación del repositorio.
+
+## 4. Arquitectura Multiplataforma y Consistencia de Contratos (Desktop / Mobile)
+
+Para garantizar la interoperabilidad entre la app de escritorio y la app móvil autónoma sin inflar el consumo de tokens:
+
+- **Contratos de Datos Agnósticos:** Todo cambio en el backend (FastAPI), esquemas (Pydantic/Zod) o modelos de base de datos debe ser neutral a la plataforma. No asuma ejecución sobre Node/Electron.
+- **Preparación Offline-First:** Toda mutación o endpoint de transacciones (ventas, arqueos, inventario) debe admitir identificadores de terminal (`terminal_id`), marcas de tiempo de origen (`created_at`) y UUIDs para permitir la sincronización diferida desde terminales móviles.
+- **Aislamiento Estricto de Entornos:** Queda prohibido importar APIs de Node/Electron dentro del ecosistema móvil (`/mobile_app`), así como usar primitivas móviles (`react-native`) en el frontend de escritorio (`/src`).
+- **Alcance Quirúrgico por Plataforma:** Modifique código móvil (`/mobile_app`) únicamente cuando la tarea lo solicite de forma explícita o cuando una alteración en el contrato de la API rompa directamente la paridad de datos entre ambas plataformas.

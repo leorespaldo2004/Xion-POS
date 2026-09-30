@@ -42,6 +42,42 @@ Hemos unificado todo el proceso en un solo comando para evitar errores manuales 
 
 ---
 
+## 📱 Aplicación Móvil (Xion POS Mobile - `/mobile_app`)
+
+### ⚡ Modo de Desarrollo (Expo Go & Dev Client)
+1. **Acceder al directorio móvil e instalar dependencias:**
+   ```powershell
+   cd mobile_app
+   npm install
+   ```
+2. **Iniciar servidor de desarrollo (Expo Go):**
+   ```powershell
+   npx expo start
+   ```
+   * **Para probar en tu teléfono/tablet físico:** Descarga **Expo Go** desde Google Play Store o App Store y escanea el código QR generado (no requiere Android Studio ni ADB).*
+   * **Para probar en un emulador Android (Opción `a`):** Requiere tener **Android Studio** instalado y la variable de entorno `ANDROID_HOME` configurada hacia `C:\Users\Usuario\AppData\Local\Android\Sdk` con `%ANDROID_HOME%\platform-tools` en el PATH.
+
+3. **Iniciar en emulador o cliente de desarrollo nativo (Dev Build):**
+
+### 🛠️ Compilación y Despliegue (EAS Build & OTA Updates)
+
+1. **Generar APK de prueba (Development Build para probar SQLite y Periféricos):**
+   ```powershell
+   npx eas build --profile development --platform android
+   ```
+
+2. **Generar APK / AAB de Producción:**
+   ```powershell
+   npx eas build --profile production --platform android
+   ```
+
+3. **Publicar Actualización Silenciosa Over-The-Air (OTA):**
+   ```powershell
+   npx eas update --branch production --message "Actualización de catálogo y parches"
+   ```
+
+---
+
 ## 🛡️ Reglas de Oro para Producción
 
 1. **Permisos:** La base de datos local se guarda en `%APPDATA%/XionPOS` para evitar errores de escritura en `Program Files`.
