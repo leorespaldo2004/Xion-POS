@@ -13,14 +13,14 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
   const user = useAuthStore((s) => s.user);
 
   return (
-    <View className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex-row items-center justify-between">
-      <View className="flex-row items-center gap-2">
-        <View className="w-8 h-8 rounded-lg bg-indigo-600 items-center justify-center">
-          <Text className="text-white font-bold text-base">X</Text>
+    <View className="bg-white border-b border-slate-100 px-4 pt-12 pb-3 flex-row items-center justify-between shadow-sm z-10">
+      <View className="flex-row items-center gap-2.5">
+        <View className="w-9 h-9 rounded-2xl bg-indigo-900 items-center justify-center shadow-sm">
+          <Text className="text-white font-black text-base">X</Text>
         </View>
         <View>
-          <Text className="text-white font-bold text-lg leading-tight">{title}</Text>
-          <Text className="text-gray-400 text-xs">{user?.name || 'Cajero'}</Text>
+          <Text className="text-slate-900 font-extrabold text-lg leading-tight">{title}</Text>
+          <Text className="text-slate-400 text-xs font-semibold">{user?.name || 'Cajero'}</Text>
         </View>
       </View>
 
@@ -29,23 +29,23 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
         <Pressable
           onPress={() => triggerSync()}
           disabled={isSyncing}
-          className="flex-row items-center gap-1.5 bg-gray-800 px-3 py-1.5 rounded-full border border-gray-700"
+          className="flex-row items-center gap-1.5 bg-slate-50 px-3.5 py-1.5 rounded-full border border-slate-200"
         >
           {isSyncing ? (
-            <RefreshCw size={14} color="#6366f1" className="animate-spin" />
+            <RefreshCw size={14} color="#4f46e5" className="animate-spin" />
           ) : isOnline ? (
-            <Wifi size={14} color="#10b981" />
+            <Wifi size={14} color="#059669" />
           ) : (
-            <WifiOff size={14} color="#ef4444" />
+            <WifiOff size={14} color="#dc2626" />
           )}
 
-          <Text className={`text-xs font-medium ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
+          <Text className={`text-xs font-extrabold ${isOnline ? 'text-emerald-700' : 'text-red-600'}`}>
             {isOnline ? 'En línea' : 'Sin red'}
           </Text>
 
           {pendingCount > 0 && (
-            <View className="bg-amber-500 rounded-full px-1.5 py-0.2">
-              <Text className="text-black font-bold text-xs">{pendingCount}</Text>
+            <View className="bg-amber-500 rounded-full px-2 py-0.5 ml-0.5">
+              <Text className="text-black font-black text-[10px]">{pendingCount}</Text>
             </View>
           )}
         </Pressable>

@@ -16,19 +16,21 @@ export default function InventoryScreen() {
   const totalStock = products.reduce((acc, p) => acc + p.current_stock, 0);
 
   return (
-    <View className="flex-1 bg-slate-950">
+    <View className="flex-1 bg-slate-100">
       <Header title="Consulta de Inventario" />
 
       <View className="p-4 flex-1">
         {/* Summary Card */}
         <View className="flex-row gap-3 mb-4">
-          <Card className="flex-1 p-3">
-            <Text className="text-gray-400 text-xs font-medium">Total Catálogo</Text>
-            <Text className="text-white font-extrabold text-xl mt-0.5">{products.length} Items</Text>
+          <Card className="flex-1 p-4 bg-white border-slate-100 rounded-3xl shadow-sm">
+            <Text className="text-slate-500 text-xs font-semibold">Total Catálogo</Text>
+            <Text className="text-slate-900 font-black text-2xl mt-0.5">{products.length}</Text>
+            <Text className="text-slate-400 text-[10px] font-medium mt-1">Items registrados</Text>
           </Card>
-          <Card className="flex-1 p-3">
-            <Text className="text-gray-400 text-xs font-medium">Stock Total</Text>
-            <Text className="text-indigo-400 font-extrabold text-xl mt-0.5">{totalStock} Unidades</Text>
+          <Card className="flex-1 p-4 bg-white border-slate-100 rounded-3xl shadow-sm">
+            <Text className="text-slate-500 text-xs font-semibold">Stock Total</Text>
+            <Text className="text-indigo-900 font-black text-2xl mt-0.5">{totalStock}</Text>
+            <Text className="text-slate-400 text-[10px] font-medium mt-1">Unidades físicas</Text>
           </Card>
         </View>
 
@@ -48,32 +50,32 @@ export default function InventoryScreen() {
             const isLow = item.current_stock <= item.min_stock;
 
             return (
-              <Card className="mb-3 p-4">
+              <Card className="mb-3 p-4 bg-white border-slate-100 rounded-3xl shadow-sm">
                 <View className="flex-row justify-between items-start mb-2">
                   <View className="flex-1 pr-2">
-                    <Text className="text-white font-bold text-base">{item.name}</Text>
-                    <Text className="text-gray-400 text-xs">
+                    <Text className="text-slate-900 font-extrabold text-base">{item.name}</Text>
+                    <Text className="text-slate-400 text-xs font-medium mt-0.5">
                       {item.barcode ? `Cód: ${item.barcode}` : 'Sin código'}
                     </Text>
                   </View>
 
                   <Badge
                     label={`Stock: ${item.current_stock}`}
-                    variant={isLow ? 'destructive' : 'info'}
+                    variant={isLow ? 'warning' : 'success'}
                   />
                 </View>
 
-                <View className="flex-row justify-between items-center border-t border-gray-800 pt-3 mt-1">
+                <View className="flex-row justify-between items-center border-t border-slate-50 pt-3 mt-1">
                   <View>
-                    <Text className="text-gray-400 text-[10px]">PRECIO USD</Text>
-                    <Text className="text-indigo-400 font-extrabold text-base">
+                    <Text className="text-slate-400 text-[10px] font-bold tracking-wider">PRECIO USD</Text>
+                    <Text className="text-indigo-900 font-black text-lg">
                       {formatUSD(item.price_usd)}
                     </Text>
                   </View>
 
                   <View className="items-end">
-                    <Text className="text-gray-400 text-[10px]">PRECIO BOLÍVARES</Text>
-                    <Text className="text-emerald-400 font-bold text-base">
+                    <Text className="text-slate-400 text-[10px] font-bold tracking-wider">PRECIO BS</Text>
+                    <Text className="text-emerald-600 font-extrabold text-lg">
                       {formatVES(vesPrice)}
                     </Text>
                   </View>
@@ -83,7 +85,7 @@ export default function InventoryScreen() {
           }}
           ListEmptyComponent={
             <View className="items-center justify-center py-16">
-              <Text className="text-gray-500 text-base">
+              <Text className="text-slate-400 text-sm font-semibold">
                 {isLoading ? 'Cargando inventario...' : 'No se encontraron productos'}
               </Text>
             </View>

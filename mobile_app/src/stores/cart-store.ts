@@ -14,19 +14,30 @@ export interface CartItem {
   max_stock: number;
 }
 
+export interface CartDiscount {
+  type: 'percentage' | 'fixed';
+  value: number;
+}
+
 interface CartState {
   items: CartItem[];
   client: LocalClient | null;
+  discount: CartDiscount | null;
+  notes: string;
   exchangeRate: number;
   vatRate: number; // e.g. 0.16 (16%)
   setExchangeRate: (rate: number) => void;
   setClient: (client: LocalClient | null) => void;
+  applyDiscount: (type: 'percentage' | 'fixed', value: number) => void;
+  clearDiscount: () => void;
+  setNotes: (notes: string) => void;
   addItem: (product: LocalProduct, qty?: number) => void;
   updateQuantity: (productId: string, qty: number) => void;
   removeItem: (productId: string) => void;
   clearCart: () => void;
 
   getSubtotalUsd: () => number;
+  getDiscountUsd: () => number;
   getTaxUsd: () => number;
   getTotalUsd: () => number;
   getTotalVes: () => number;
@@ -35,11 +46,16 @@ interface CartState {
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   client: null,
+  discount: null,
+  notes: '',
   exchangeRate: 36.5,
   vatRate: 0.16,
 
   setExchangeRate: (rate) => set({ exchangeRate: rate }),
   setClient: (client) => set({ client }),
+  applyDiscount: (type, value) => set({ discount: { type, value } }),
+  clearDiscount: () => set({ discount: null }),
+  setNotes: (notes) => set({ notes }),
 
   addItem: (product, qty = 1) => {
     const { items } = get();
@@ -91,7 +107,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items: get().items.filter((i) => i.product_id !== productId) });
   },
 
-  clearCart: () => set({ items: [], client: null }),
+  clearCart: () => set({ items: [], client: null, discount: null, notes: '' }),
 
   getSubtotalUsd: () => {
     return Number(
@@ -101,18 +117,34 @@ export const useCartStore = create<CartState>((set, get) => ({
     );
   },
 
+  getDiscountUsd: () => {
+    const { discount } = get();
+    if (!discount || discount.value <= 0) return 0;
+    const subtotal = get().getSubtotalUsd();
+    if (discount.type === 'percentage') {
+      return Number(((subtotal * discount.value) / 100).toFixed(2));
+    }
+    return Number(Math.min(discount.value, subtotal).toFixed(2));
+  },
+
   getTaxUsd: () => {
     const { items, vatRate } = get();
+    const discountUsd = get().getDiscountUsd();
+    const rawSubtotal = get().getSubtotalUsd();
+
+    const discountFactor = rawSubtotal > 0 ? (rawSubtotal - discountUsd) / rawSubtotal : 1;
     const taxableTotal = items
       .filter((i) => i.has_vat)
       .reduce((acc, i) => acc + i.total_price_usd, 0);
-    return Number((taxableTotal * vatRate).toFixed(2));
+
+    return Number((taxableTotal * discountFactor * vatRate).toFixed(2));
   },
 
   getTotalUsd: () => {
     const subtotal = get().getSubtotalUsd();
+    const discount = get().getDiscountUsd();
     const tax = get().getTaxUsd();
-    return Number((subtotal + tax).toFixed(2));
+    return Number((Math.max(0, subtotal - discount) + tax).toFixed(2));
   },
 
   getTotalVes: () => {

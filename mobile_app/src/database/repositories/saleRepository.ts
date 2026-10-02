@@ -17,7 +17,7 @@ export interface LocalSaleItem {
 export interface LocalSalePayment {
   id: string;
   sale_id: string;
-  payment_method: 'cash_usd' | 'cash_ves' | 'pago_movil' | 'pos_card' | 'zelle';
+  payment_method: 'cash_usd' | 'cash_ves' | 'pago_movil' | 'pos_card' | 'zelle' | 'binance' | string;
   amount_usd: number;
   amount_ves: number;
   reference?: string | null;
@@ -173,5 +173,33 @@ export const saleRepository = {
       items: itemRows.map((i) => ({ ...i, has_vat: Boolean(i.has_vat) })),
       payments: paymentRows
     };
+  },
+
+  async getPaymentTotals(): Promise<Record<string, { usd: number; ves: number }>> {
+    const db = getDb();
+    const rows = await db.getAllAsync<{ payment_method: string; total_usd: number; total_ves: number }>(
+      `SELECT payment_method, COALESCE(SUM(amount_usd), 0) as total_usd, COALESCE(SUM(amount_ves), 0) as total_ves
+       FROM sale_payments GROUP BY payment_method`
+    );
+
+    const totals: Record<string, { usd: number; ves: number }> = {
+      pago_movil: { usd: 0, ves: 0 },
+      transferencia: { usd: 0, ves: 0 },
+      pos_card: { usd: 0, ves: 0 },
+      biopago: { usd: 0, ves: 0 },
+      cash_ves: { usd: 0, ves: 0 },
+      cash_usd: { usd: 0, ves: 0 }
+    };
+
+    for (const r of rows) {
+      if (r.payment_method === 'pago_movil') totals.pago_movil = { usd: r.total_usd, ves: r.total_ves };
+      else if (r.payment_method === 'zelle' || r.payment_method === 'transferencia') totals.transferencia = { usd: r.total_usd, ves: r.total_ves };
+      else if (r.payment_method === 'pos_card' || r.payment_method === 'debito') totals.pos_card = { usd: r.total_usd, ves: r.total_ves };
+      else if (r.payment_method === 'biopago') totals.biopago = { usd: r.total_usd, ves: r.total_ves };
+      else if (r.payment_method === 'cash_ves') totals.cash_ves = { usd: r.total_usd, ves: r.total_ves };
+      else if (r.payment_method === 'cash_usd') totals.cash_usd = { usd: r.total_usd, ves: r.total_ves };
+    }
+
+    return totals;
   }
 };

@@ -1,8 +1,9 @@
 import { getDb } from '../client';
+import { generateUUID } from '../../utils/uuid';
 
 export interface SyncQueueItem {
   id: string;
-  action: 'CREATE_SALE' | 'UPDATE_STOCK' | 'CREATE_CLIENT';
+  action: 'CREATE_SALE' | 'UPDATE_STOCK' | 'CREATE_CLIENT' | 'CREATE_PURCHASE';
   payload: string; // JSON string
   retry_count: number;
   status: 'pending' | 'processing' | 'failed';
@@ -18,6 +19,15 @@ export const syncRepository = {
        VALUES (?, ?, ?, 0, 'pending', ?)`,
       [item.id, item.action, item.payload, item.created_at]
     );
+  },
+
+  async enqueue(action: SyncQueueItem['action'], payload: string): Promise<void> {
+    await this.addToQueue({
+      id: generateUUID(),
+      action,
+      payload,
+      created_at: new Date().toISOString()
+    });
   },
 
   async getPendingQueue(): Promise<SyncQueueItem[]> {

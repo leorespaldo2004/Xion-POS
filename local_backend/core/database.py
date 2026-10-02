@@ -42,15 +42,16 @@ def init_db() -> None:
             config = SystemConfig()
             session.add(config)
             
-        # Default payment methods
+        # Default system payment methods with permanent base images
         default_methods = [
-            {"code": "pago_movil", "name": "Pago Móvil", "currency": "VES", "allow_decimals": True, "is_system": True},
-            {"code": "transferencia_nacional", "name": "Transferencia", "currency": "VES", "allow_decimals": True, "is_system": True},
-            {"code": "tarjeta_debito", "name": "Débito", "currency": "VES", "allow_decimals": True, "is_system": True},
-            {"code": "biopago", "name": "Biopago", "currency": "VES", "allow_decimals": True, "is_system": True},
-            {"code": "efectivo_bs", "name": "Efectivo BS", "currency": "VES", "allow_decimals": False, "is_system": True},
-            {"code": "efectivo_usd", "name": "Efectivo USD", "currency": "USD", "allow_decimals": False, "is_system": True},
-            {"code": "zelle", "name": "Zelle", "currency": "USD", "allow_decimals": True, "is_system": True},
+            {"code": "pago_movil", "name": "Pago Móvil", "currency": "VES", "allow_decimals": True, "is_system": True, "image_url": "65cc43a8116c"},
+            {"code": "transferencia_nacional", "name": "Transferencia", "currency": "VES", "allow_decimals": True, "is_system": True, "image_url": "c95398b571ef"},
+            {"code": "tarjeta_debito", "name": "Débito", "currency": "VES", "allow_decimals": True, "is_system": True, "image_url": "61149c1c2ed4"},
+            {"code": "biopago", "name": "Biopago", "currency": "VES", "allow_decimals": True, "is_system": True, "image_url": "d52c08dd0253"},
+            {"code": "efectivo_bs", "name": "Efectivo BS", "currency": "VES", "allow_decimals": False, "is_system": True, "image_url": "4129e9c224a2"},
+            {"code": "efectivo_usd", "name": "Efectivo USD", "currency": "USD", "allow_decimals": False, "is_system": True, "image_url": "d51e15debbbe"},
+            {"code": "zelle", "name": "Zelle", "currency": "USD", "allow_decimals": True, "is_system": True, "image_url": "3ff1409737f8"},
+            {"code": "binance", "name": "Binance Pay", "currency": "USD", "allow_decimals": True, "is_system": True, "image_url": "5c4937a497c5"},
         ]
         
         for dm in default_methods:
@@ -58,6 +59,10 @@ def init_db() -> None:
             if not pm:
                 new_pm = PaymentMethodModel(**dm)
                 session.add(new_pm)
+            else:
+                if pm.is_system and not pm.image_url:
+                    pm.image_url = dm["image_url"]
+                    session.add(pm)
 
         session.commit()
         session.refresh(config)

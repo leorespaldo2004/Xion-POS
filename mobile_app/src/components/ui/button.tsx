@@ -20,34 +20,34 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  let bgStyles = 'bg-indigo-600 active:bg-indigo-700';
-  let textStyles = 'text-white font-semibold';
+  let bgStyles = 'bg-indigo-900 active:bg-indigo-950 shadow-sm';
+  let textStyles = 'text-white font-extrabold';
 
   if (variant === 'secondary') {
-    bgStyles = 'bg-gray-800 active:bg-gray-700 border border-gray-700';
-    textStyles = 'text-gray-200 font-medium';
+    bgStyles = 'bg-slate-100 active:bg-slate-200 border border-slate-200';
+    textStyles = 'text-slate-800 font-bold';
   } else if (variant === 'outline') {
-    bgStyles = 'bg-transparent border border-indigo-500 active:bg-indigo-950';
-    textStyles = 'text-indigo-400 font-medium';
+    bgStyles = 'bg-transparent border border-indigo-200 active:bg-indigo-50';
+    textStyles = 'text-indigo-900 font-extrabold';
   } else if (variant === 'ghost') {
-    bgStyles = 'bg-transparent active:bg-gray-800';
-    textStyles = 'text-gray-300 font-medium';
+    bgStyles = 'bg-transparent active:bg-slate-100';
+    textStyles = 'text-slate-600 font-bold';
   } else if (variant === 'destructive') {
-    bgStyles = 'bg-red-600 active:bg-red-700';
-    textStyles = 'text-white font-semibold';
+    bgStyles = 'bg-red-600 active:bg-red-700 shadow-sm';
+    textStyles = 'text-white font-extrabold';
   } else if (variant === 'success') {
-    bgStyles = 'bg-emerald-600 active:bg-emerald-700';
-    textStyles = 'text-white font-semibold';
+    bgStyles = 'bg-emerald-600 active:bg-emerald-700 shadow-sm';
+    textStyles = 'text-white font-extrabold';
   }
 
-  let sizeStyles = 'py-3 px-4 rounded-xl';
+  let sizeStyles = 'py-3.5 px-5 rounded-full min-h-[48px]';
   let textSizeStyles = 'text-base';
 
   if (size === 'sm') {
-    sizeStyles = 'py-2 px-3 rounded-lg';
-    textSizeStyles = 'text-sm';
+    sizeStyles = 'py-2 px-3.5 rounded-full min-h-[38px]';
+    textSizeStyles = 'text-xs';
   } else if (size === 'lg') {
-    sizeStyles = 'py-4 px-6 rounded-2xl';
+    sizeStyles = 'py-4 px-6 rounded-full min-h-[54px]';
     textSizeStyles = 'text-lg';
   }
 

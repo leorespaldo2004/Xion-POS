@@ -51,30 +51,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!isDbReady) {
-    return (
-      <View className="flex-1 bg-slate-950 items-center justify-center p-6">
-        {dbError ? (
-          <View className="items-center">
-            <Text className="text-red-500 font-bold text-lg mb-2">Error de Inicialización</Text>
-            <Text className="text-gray-400 text-center">{dbError}</Text>
-          </View>
-        ) : (
-          <View className="items-center">
-            <ActivityIndicator size="large" color="#6366f1" />
-            <Text className="text-white font-medium mt-4 text-base">Inicializando Xion POS Mobile...</Text>
-            <Text className="text-gray-500 text-sm mt-1">Cargando SQLite Offline-First</Text>
-          </View>
-        )}
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" backgroundColor="#090d16" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#090d16' } }}>
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#f1f5f9' } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)/login" />
           <Stack.Screen
@@ -86,6 +67,42 @@ export default function RootLayout() {
             options={{ presentation: 'fullScreenModal', animation: 'fade' }}
           />
         </Stack>
+
+        {!isDbReady && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#f1f5f9',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 24,
+              zIndex: 9999
+            }}
+          >
+            {dbError ? (
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>
+                  Error de Inicialización
+                </Text>
+                <Text style={{ color: '#475569', textAlign: 'center' }}>{dbError}</Text>
+              </View>
+            ) : (
+              <View style={{ alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <Text style={{ color: '#0f172a', fontWeight: 'bold', marginTop: 16, fontSize: 16 }}>
+                  Inicializando Xion POS Mobile...
+                </Text>
+                <Text style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
+                  Cargando SQLite Offline-First
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </QueryClientProvider>
     </SafeAreaProvider>
   );

@@ -225,12 +225,17 @@ export function PaymentMethodModal({ open, onClose, method }: PaymentMethodModal
                   variant="outline" 
                   size="sm" 
                   className="w-full gap-2"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
+                  onClick={() => !isSystem && fileInputRef.current?.click()}
+                  disabled={isUploading || isSystem}
                 >
                   <Upload className="h-4 w-4" />
-                  {isUploading ? "Subiendo..." : (imageId ? "Cambiar Imagen" : "Subir Imagen")}
+                  {isSystem ? "Imagen de Sistema Fija" : (isUploading ? "Subiendo..." : (imageId ? "Cambiar Imagen" : "Subir Imagen"))}
                 </Button>
+                {isSystem && (
+                  <p className="text-[10px] text-muted-foreground italic mt-1 text-center">
+                    Las imágenes de métodos de sistema son permanentes.
+                  </p>
+                )}
               </div>
             </div>
           </div>

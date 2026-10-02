@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, Vibration } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { X, Flashlight } from 'lucide-react-native';
@@ -24,17 +24,22 @@ export default function BarcodeScannerModal() {
     setScanned(true);
 
     try {
+      Vibration.vibrate(100);
       const product = await productRepository.getByBarcode(data);
       if (product) {
         addItem(product, 1);
-        Alert.alert('Producto Agregado', `${product.name}\n${product.price_usd} USD`, [
+        Alert.alert('⚡ Producto Agregado', `${product.name}\n${product.price_usd} USD`, [
           {
-            text: 'OK',
+            text: 'Continuar Escaneando',
+            onPress: () => setScanned(false)
+          },
+          {
+            text: 'Ir a Caja',
             onPress: () => router.back()
           }
         ]);
       } else {
-        Alert.alert('No Encontrado', `No existe producto con código: ${data}`, [
+        Alert.alert('No Encontrado', `No existe producto registrado con el código: ${data}`, [
           {
             text: 'Reintentar',
             onPress: () => setScanned(false)
@@ -47,7 +52,7 @@ export default function BarcodeScannerModal() {
         ]);
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Error buscando producto');
+      Alert.alert('Error al escanear', err.message || 'Error buscando producto localmente');
       setScanned(false);
     }
   };
@@ -80,8 +85,11 @@ export default function BarcodeScannerModal() {
           barcodeTypes: ['ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e', 'qr']
         }}
         enableTorch={torch}
-        style={StyleSheet.absoluteFillObject}
-      >
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* UI Overlay positioned on top of camera */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {/* Overlay header */}
         <View className="flex-row justify-between items-center p-4 bg-black/60 pt-12">
           <Text className="text-white font-bold text-lg">Escanear Código de Barras</Text>
@@ -109,7 +117,7 @@ export default function BarcodeScannerModal() {
             Alinee el código de barras dentro del recuadro
           </Text>
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 }

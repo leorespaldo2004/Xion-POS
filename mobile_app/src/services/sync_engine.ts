@@ -128,6 +128,16 @@ class SyncEngine {
             await syncRepository.updateQueueStatus(item.id, 'failed', errorMsg);
             this.lastError = errorMsg;
           }
+        } else if (item.action === 'CREATE_PURCHASE') {
+          const payload = JSON.parse(item.payload);
+          try {
+            await client.post('/api/purchases', payload);
+            await syncRepository.removeQueueItem(item.id);
+          } catch (err: any) {
+            const errorMsg = err.response?.data?.detail || err.message || 'Error enviando compra al backend';
+            await syncRepository.updateQueueStatus(item.id, 'failed', errorMsg);
+            this.lastError = errorMsg;
+          }
         }
       }
 

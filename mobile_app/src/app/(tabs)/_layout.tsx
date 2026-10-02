@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { ShoppingBag, Receipt, Package, Settings } from 'lucide-react-native';
+import { Wallet, ShoppingCart, BarChart3, Settings, ShoppingBag } from 'lucide-react-native';
 
 export default function TabsLayout() {
   return (
@@ -8,13 +8,18 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0f172a',
-          borderTopColor: '#1e293b',
-          height: 60,
+          backgroundColor: '#ffffff',
+          borderTopColor: '#f1f5f9',
+          height: 64,
           paddingBottom: 8,
-          paddingTop: 8
+          paddingTop: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 5
         },
-        tabBarActiveTintColor: '#6366f1',
+        tabBarActiveTintColor: '#3b82f6',
         tabBarInactiveTintColor: '#64748b',
         tabBarLabelStyle: {
           fontSize: 11,
@@ -23,33 +28,65 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Caja',
+          tabBarIcon: ({ color, size }) => <Wallet color={color} size={22} />
+        }}
+      />
+      <Tabs.Screen
         name="pos"
         options={{
-          title: 'Caja POS',
-          tabBarIcon: ({ color, size }) => <ShoppingBag color={color} size={size} />
+          title: 'Ventas',
+          tabBarIcon: ({ color, size }) => <ShoppingCart color={color} size={22} />
+        }}
+      />
+      <Tabs.Screen
+        name="purchases"
+        options={{
+          title: 'Compras',
+          tabBarIcon: ({ color, size }) => <ShoppingBag color={color} size={22} />
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
-          title: 'Ventas',
-          tabBarIcon: ({ color, size }) => <Receipt color={color} size={size} />
-        }}
-      />
-      <Tabs.Screen
-        name="inventory"
-        options={{
-          title: 'Inventario',
-          tabBarIcon: ({ color, size }) => <Package color={color} size={size} />
+          title: 'Reportes',
+          tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={22} />
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Ajustes',
-          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />
+          title: 'Configuración',
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={22} />
+        }}
+      />
+      <Tabs.Screen
+        name="clients"
+        options={{
+          href: null // hidden tab
+        }}
+      />
+      <Tabs.Screen
+        name="suppliers"
+        options={{
+          href: null // hidden tab
+        }}
+      />
+      <Tabs.Screen
+        name="payment-methods"
+        options={{
+          href: null // hidden tab
+        }}
+      />
+      <Tabs.Screen
+        name="inventory"
+        options={{
+          href: null // hidden tab
         }}
       />
     </Tabs>
   );
 }
+

@@ -64,14 +64,11 @@ def update_payment_method(pm_id: int, pm_in: PaymentMethodUpdate, session: Sessi
         raise HTTPException(status_code=404, detail="Método de pago no encontrado.")
         
     if pm.is_system:
-        # Prevent structural changes to system methods
+        # System payment methods have permanent base images and locked structural fields
         if pm_in.is_active is not None:
             pm.is_active = pm_in.is_active
-        if pm_in.image_url is not None:
-            pm.image_url = pm_in.image_url
-            
-        # Allow updating the name of system methods if desired (for presentation) or maybe not?
-        # Requerimiento: "bloquear los campos estructurales críticos (como el identificador o nombre interno), permitiendo únicamente alternar su estado activo/inactivo, cambiar su imagen o actualizar parámetros visuales menores."
+        if pm_in.image_url is not None and pm_in.image_url != pm.image_url:
+            raise HTTPException(status_code=400, detail="Las imágenes de los métodos de pago de sistema son fijas e inmodificables.")
         if pm_in.name is not None:
             pm.name = pm_in.name
     else:

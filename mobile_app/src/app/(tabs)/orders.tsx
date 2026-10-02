@@ -45,7 +45,7 @@ export default function OrdersScreen() {
   });
 
   return (
-    <View className="flex-1 bg-slate-950">
+    <View className="flex-1 bg-slate-100">
       <Header title="Historial de Ventas" />
 
       <View className="p-4 flex-1">
@@ -53,37 +53,51 @@ export default function OrdersScreen() {
         <View className="flex-row gap-2 mb-4">
           <Pressable
             onPress={() => setFilter('all')}
-            className={`px-4 py-2 rounded-xl border ${
+            className={`px-4 py-2 rounded-full border ${
               filter === 'all'
-                ? 'bg-indigo-600 border-indigo-500'
-                : 'bg-gray-900 border-gray-800'
+                ? 'bg-indigo-900 border-indigo-900'
+                : 'bg-white border-slate-200'
             }`}
           >
-            <Text className="text-white text-xs font-bold">Todas ({sales.length})</Text>
+            <Text
+              className={`text-xs font-extrabold ${
+                filter === 'all' ? 'text-white' : 'text-slate-700'
+              }`}
+            >
+              Todas ({sales.length})
+            </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setFilter('pending_sync')}
-            className={`px-4 py-2 rounded-xl border ${
+            className={`px-4 py-2 rounded-full border ${
               filter === 'pending_sync'
-                ? 'bg-amber-600 border-amber-500'
-                : 'bg-gray-900 border-gray-800'
+                ? 'bg-amber-500 border-amber-600'
+                : 'bg-white border-slate-200'
             }`}
           >
-            <Text className="text-white text-xs font-bold">
-              Pendientes Sync ({sales.filter((s) => s.status === 'pending_sync').length})
+            <Text
+              className={`text-xs font-extrabold ${
+                filter === 'pending_sync' ? 'text-black' : 'text-slate-700'
+              }`}
+            >
+              Pendientes ({sales.filter((s) => s.status === 'pending_sync').length})
             </Text>
           </Pressable>
 
           <Pressable
             onPress={() => setFilter('synced')}
-            className={`px-4 py-2 rounded-xl border ${
+            className={`px-4 py-2 rounded-full border ${
               filter === 'synced'
-                ? 'bg-emerald-600 border-emerald-500'
-                : 'bg-gray-900 border-gray-800'
+                ? 'bg-emerald-600 border-emerald-700'
+                : 'bg-white border-slate-200'
             }`}
           >
-            <Text className="text-white text-xs font-bold">
+            <Text
+              className={`text-xs font-extrabold ${
+                filter === 'synced' ? 'text-white' : 'text-slate-700'
+              }`}
+            >
               Sincronizadas ({sales.filter((s) => s.status === 'synced').length})
             </Text>
           </Pressable>
@@ -93,15 +107,15 @@ export default function OrdersScreen() {
         <FlatList
           data={filteredSales}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadSales} tintColor="#6366f1" />}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadSales} tintColor="#4f46e5" />}
           renderItem={({ item }) => (
-            <Card className="mb-3 p-4">
+            <Card className="mb-3 bg-white border-slate-100 p-4 rounded-3xl shadow-sm">
               <View className="flex-row justify-between items-start mb-2">
                 <View>
-                  <Text className="text-white font-bold text-base">
+                  <Text className="text-slate-900 font-black text-base">
                     Ticket #{item.id.substring(0, 8).toUpperCase()}
                   </Text>
-                  <Text className="text-gray-400 text-xs">{formatDate(item.created_at)}</Text>
+                  <Text className="text-slate-400 text-xs font-semibold">{formatDate(item.created_at)}</Text>
                 </View>
 
                 {item.status === 'synced' ? (
@@ -111,27 +125,27 @@ export default function OrdersScreen() {
                 )}
               </View>
 
-              <View className="flex-row justify-between items-center border-t border-gray-800 pt-3 mt-1">
+              <View className="flex-row justify-between items-center border-t border-slate-100 pt-3 mt-1">
                 <View>
-                  <Text className="text-indigo-400 font-extrabold text-lg">
+                  <Text className="text-slate-900 font-black text-xl">
                     {formatUSD(item.total_usd)}
                   </Text>
-                  <Text className="text-emerald-400 text-xs">{formatVES(item.total_ves)}</Text>
+                  <Text className="text-emerald-600 text-xs font-bold">{formatVES(item.total_ves)}</Text>
                 </View>
 
                 <Pressable
                   onPress={() => handlePrint(item)}
-                  className="bg-gray-800 active:bg-gray-700 p-2.5 rounded-xl flex-row items-center gap-1.5 border border-gray-700"
+                  className="bg-indigo-50 active:bg-indigo-100 px-3.5 py-2 rounded-full flex-row items-center gap-1.5 border border-indigo-200"
                 >
-                  <Printer size={16} color="#6366f1" />
-                  <Text className="text-indigo-400 font-semibold text-xs">Imprimir</Text>
+                  <Printer size={15} color="#3b82f6" />
+                  <Text className="text-indigo-900 font-extrabold text-xs">Imprimir</Text>
                 </Pressable>
               </View>
             </Card>
           )}
           ListEmptyComponent={
             <View className="items-center justify-center py-16">
-              <Text className="text-gray-500 text-base">No hay ventas registradas</Text>
+              <Text className="text-slate-400 text-sm font-semibold">No hay ventas registradas</Text>
             </View>
           }
         />

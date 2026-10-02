@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Alert, Switch } from 'react-native';
 import { router } from 'expo-router';
-import { RefreshCw, Printer, Server, DollarSign, Download, LogOut } from 'lucide-react-native';
+import { RefreshCw, Printer, Server, DollarSign, Download, LogOut, Users, Building2, CreditCard } from 'lucide-react-native';
 import { Header } from '../../components/ui/header';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -13,6 +13,9 @@ import { usePrinter } from '../../hooks/usePrinter';
 import { useCartStore } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { updaterService } from '../../services/updater_service';
+
+import { getDb } from '../../database/client';
+import { forceSeedDatabase } from '../../database/schema';
 
 export default function SettingsScreen() {
   const [apiUrl, setApiUrl] = useState('');
@@ -28,6 +31,7 @@ export default function SettingsScreen() {
   const [nameInput, setNameInput] = useState(printerName);
   const [autoPrintToggle, setAutoPrintToggle] = useState(autoPrint);
   const [updating, setUpdating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -41,6 +45,31 @@ export default function SettingsScreen() {
     setMacInput(config.printer_mac);
     setNameInput(config.printer_name);
     setAutoPrintToggle(config.auto_print);
+  };
+
+  const handleImportDesktopData = async () => {
+    Alert.alert(
+      'Importar Datos de Escritorio',
+      '¿Desea cargar/actualizar los datos de productos, clientes y transacciones desde la base de datos de escritorio (xion_offline.db)?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Importar Ahora',
+          onPress: async () => {
+            setImporting(true);
+            try {
+              const db = getDb();
+              await forceSeedDatabase(db);
+              Alert.alert('Éxito', 'Se importaron correctamente los datos de escritorio.');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Error importando base de datos');
+            } finally {
+              setImporting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleSaveConfig = async () => {
@@ -91,16 +120,38 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-950">
+    <View className="flex-1 bg-slate-100">
       <Header title="Configuración" />
 
       <ScrollView className="p-4 flex-1">
+        {/* Module Management Quick Links Card */}
+        <Card className="mb-4 bg-white border-slate-100 p-4 rounded-3xl shadow-sm">
+          <Text className="text-slate-900 font-extrabold text-base mb-3">Módulos de Gestión</Text>
+          <View className="flex-row gap-2 mb-2">
+            <View className="flex-1">
+              <Button onPress={() => router.push('/clients')} variant="outline" className="flex-row items-center gap-1.5">
+                <Users size={16} color="#4f46e5" />
+                <Text className="text-indigo-900 font-bold text-xs">Clientes</Text>
+              </Button>
+            </View>
+            <View className="flex-1">
+              <Button onPress={() => router.push('/suppliers')} variant="outline" className="flex-row items-center gap-1.5">
+                <Building2 size={16} color="#2563eb" />
+                <Text className="text-blue-900 font-bold text-xs">Proveedores</Text>
+              </Button>
+            </View>
+          </View>
+          <Button onPress={() => router.push('/payment-methods')} variant="outline" className="flex-row items-center gap-2">
+            <CreditCard size={18} color="#2563eb" />
+            <Text className="text-slate-800 font-bold text-xs">Métodos de Pago</Text>
+          </Button>
+        </Card>
         {/* Sync Queue Card */}
-        <Card className="mb-4">
+        <Card className="mb-4 bg-white border-slate-100 p-4 rounded-3xl shadow-sm">
           <View className="flex-row items-center justify-between mb-3">
             <View className="flex-row items-center gap-2">
-              <RefreshCw size={20} color="#6366f1" />
-              <Text className="text-white font-bold text-base">Motor de Sincronización</Text>
+              <RefreshCw size={20} color="#3b82f6" />
+              <Text className="text-slate-900 font-extrabold text-base">Motor de Sincronización</Text>
             </View>
             <Badge
               label={isOnline ? 'Conectado' : 'Offline'}
@@ -108,31 +159,40 @@ export default function SettingsScreen() {
             />
           </View>
 
-          <Text className="text-gray-400 text-xs mb-1">
-            Ventas pendientes por enviar: <Text className="text-amber-400 font-bold">{pendingCount}</Text>
+          <Text className="text-slate-600 text-xs font-semibold mb-1">
+            Ventas pendientes por enviar: <Text className="text-amber-600 font-extrabold">{pendingCount}</Text>
           </Text>
           {lastSyncAt && (
-            <Text className="text-gray-500 text-[10px] mb-3">
+            <Text className="text-slate-400 text-[10px] font-semibold mb-3">
               Última sincronización: {new Date(lastSyncAt).toLocaleString()}
             </Text>
           )}
 
           {lastError && (
-            <View className="bg-red-950/60 p-2.5 rounded-xl border border-red-800 mb-3">
-              <Text className="text-red-300 text-xs font-medium">{lastError}</Text>
+            <View className="bg-red-50 p-2.5 rounded-2xl border border-red-200 mb-3">
+              <Text className="text-red-700 text-xs font-semibold">{lastError}</Text>
             </View>
           )}
 
-          <Button loading={isSyncing} onPress={handleManualSync} variant="outline">
-            Sincronizar Cola Ahora
-          </Button>
+          <View className="flex-row gap-2">
+            <View className="flex-1">
+              <Button loading={isSyncing} onPress={handleManualSync} variant="outline">
+                Sincronizar Cola
+              </Button>
+            </View>
+            <View className="flex-1">
+              <Button loading={importing} onPress={handleImportDesktopData} variant="secondary">
+                Cargar BDD Escritorio
+              </Button>
+            </View>
+          </View>
         </Card>
 
         {/* Server & Exchange Rates */}
-        <Card className="mb-4">
+        <Card className="mb-4 bg-white border-slate-100 p-4 rounded-3xl shadow-sm">
           <View className="flex-row items-center gap-2 mb-3">
-            <Server size={20} color="#6366f1" />
-            <Text className="text-white font-bold text-base">Conexión y Tasas de Cambio</Text>
+            <Server size={20} color="#3b82f6" />
+            <Text className="text-slate-900 font-extrabold text-base">Conexión y Tasas de Cambio</Text>
           </View>
 
           <Input
@@ -165,10 +225,10 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Thermal Printer Settings */}
-        <Card className="mb-4">
+        <Card className="mb-4 bg-white border-slate-100 p-4 rounded-3xl shadow-sm">
           <View className="flex-row items-center gap-2 mb-3">
-            <Printer size={20} color="#6366f1" />
-            <Text className="text-white font-bold text-base">Impresora Térmica Bluetooth</Text>
+            <Printer size={20} color="#3b82f6" />
+            <Text className="text-slate-900 font-extrabold text-base">Impresora Térmica Bluetooth</Text>
           </View>
 
           <Input
@@ -185,12 +245,12 @@ export default function SettingsScreen() {
             onChangeText={setNameInput}
           />
 
-          <View className="flex-row justify-between items-center py-2 border-t border-gray-800 mt-1 mb-2">
-            <Text className="text-white text-sm font-medium">Impresión Automática al Cobrar</Text>
+          <View className="flex-row justify-between items-center py-2 border-t border-slate-100 mt-1 mb-2">
+            <Text className="text-slate-800 text-sm font-bold">Impresión Automática al Cobrar</Text>
             <Switch
               value={autoPrintToggle}
               onValueChange={setAutoPrintToggle}
-              trackColor={{ false: '#374151', true: '#6366f1' }}
+              trackColor={{ false: '#cbd5e1', true: '#3b82f6' }}
             />
           </View>
         </Card>

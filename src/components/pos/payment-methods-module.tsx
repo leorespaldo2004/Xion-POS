@@ -100,7 +100,6 @@ export function PaymentMethodsModule() {
                     {method.is_system && <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase font-bold">Sistema</span>}
                     {!method.is_active && <span className="text-[9px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded uppercase font-bold">Inactivo</span>}
                   </p>
-                  <p className="text-xs text-muted-foreground font-mono">{method.code}</p>
                 </div>
                 <div className="flex-1">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase">Moneda</p>
@@ -195,7 +194,6 @@ export function PaymentMethodsModule() {
 
                   <CardContent className="p-3 shrink-0 bg-card flex flex-col gap-1">
                     <div>
-                      <p className="text-[10px] font-mono text-muted-foreground leading-none mb-1">{method.code}</p>
                       <h3 className="line-clamp-2 text-sm font-bold text-foreground leading-tight group-hover:text-primary transition-colors">
                         {method.name}
                       </h3>

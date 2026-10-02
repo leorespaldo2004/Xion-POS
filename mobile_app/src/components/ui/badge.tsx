@@ -8,15 +8,15 @@ export interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ label, variant = 'neutral', className = '' }) => {
-  let bg = 'bg-gray-800 border-gray-700 text-gray-300';
-  if (variant === 'success') bg = 'bg-emerald-950/80 border-emerald-800 text-emerald-400';
-  if (variant === 'warning') bg = 'bg-amber-950/80 border-amber-800 text-amber-400';
-  if (variant === 'destructive') bg = 'bg-red-950/80 border-red-800 text-red-400';
-  if (variant === 'info') bg = 'bg-indigo-950/80 border-indigo-800 text-indigo-400';
+  let bg = 'bg-slate-100 border-slate-200 text-slate-700';
+  if (variant === 'success') bg = 'bg-emerald-50 border-emerald-200 text-emerald-800';
+  if (variant === 'warning') bg = 'bg-amber-50 border-amber-200 text-amber-800';
+  if (variant === 'destructive') bg = 'bg-red-50 border-red-200 text-red-700';
+  if (variant === 'info') bg = 'bg-indigo-50 border-indigo-200 text-indigo-900';
 
   return (
-    <View className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${bg} ${className}`}>
-      <Text className={`text-xs font-semibold ${bg.split(' ').pop()}`}>{label}</Text>
+    <View className={`px-3 py-1 rounded-full border ${bg} ${className}`}>
+      <Text className={`text-xs font-extrabold ${bg.split(' ').pop()}`}>{label}</Text>
     </View>
   );
 };

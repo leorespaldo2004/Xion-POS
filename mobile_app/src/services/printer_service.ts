@@ -53,12 +53,13 @@ export const printerService = {
     // Payments
     text += `PAGOS:\n`;
     for (const p of payments) {
-      let label = p.payment_method;
+      let label: string = p.payment_method;
       if (p.payment_method === 'cash_usd') label = 'Efectivo USD';
       if (p.payment_method === 'cash_ves') label = 'Efectivo Bs';
       if (p.payment_method === 'pago_movil') label = 'Pago Móvil';
       if (p.payment_method === 'pos_card') label = 'Tarjeta Punto';
       if (p.payment_method === 'zelle') label = 'Zelle';
+      if (p.payment_method === 'binance') label = 'Binance Pay';
 
       text += `  - ${label}: ${formatUSD(p.amount_usd)} (${formatVES(p.amount_ves)})\n`;
       if (p.reference) text += `    Ref: ${p.reference}\n`;
