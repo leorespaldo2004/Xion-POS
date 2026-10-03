@@ -66,7 +66,7 @@ export function ProductGridList({
                 onClick={() => onProductClick && onProductClick(product)}
               >
                 <div className="w-10 h-10 shrink-0 rounded overflow-hidden border border-border/50 bg-background">
-                  <ProductImage imageId={product.image_id as any} productName={product.name} categoryName={product.category_id || 'GEN'} size="thumb" />
+                  <ProductImage imageId={product.image_id} productName={product.name} categoryName={product.category_id || 'GEN'} size="thumb" />
                 </div>
 
                 <div className="w-20 shrink-0 text-xs font-mono font-medium text-muted-foreground truncate">{product.sku}</div>
@@ -169,7 +169,7 @@ export function ProductGridList({
             {/* Image & Main Price */}
             <div className="flex-1 bg-muted/20 w-full aspect-square flex items-center justify-center relative border-b border-border/40 p-0 overflow-hidden">
               <ProductImage
-                imageId={product.image_id as any}
+                imageId={product.image_id}
                 productName={product.name}
                 categoryName={product.category_id || 'GEN'}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

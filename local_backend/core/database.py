@@ -36,6 +36,48 @@ def init_db() -> None:
                         conn.execute(text(f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {col_type}'))
                         conn.commit()
 
+        # Crear vista de balances de cliente (CxC)
+        conn.execute(text("""
+            CREATE VIEW IF NOT EXISTS view_client_balances AS
+            SELECT 
+                c.id AS client_id,
+                c.name,
+                c.identification_type,
+                c.identification_number,
+                c.credit_limit_usd,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN l.tx_type = 'CHARGE' THEN l.amount_usd
+                        WHEN l.tx_type IN ('PAYMENT', 'DISCOUNT') THEN -l.amount_usd
+                        ELSE 0 
+                    END
+                ), 0.0) AS current_debt_usd
+            FROM clients c
+            LEFT JOIN client_receivables_ledger l ON c.id = l.client_id
+            WHERE c.deleted_at IS NULL
+            GROUP BY c.id, c.name, c.identification_type, c.identification_number, c.credit_limit_usd;
+        """))
+
+        # Trigger para actualizar stock físico a partir del Kardex en SQLite
+        conn.execute(text("""
+            CREATE TRIGGER IF NOT EXISTS trg_apply_inventory_tx
+            AFTER INSERT ON inventory_transactions
+            FOR EACH ROW
+            BEGIN
+                UPDATE products 
+                SET cached_stock_quantity = cached_stock_quantity + (
+                    CASE WHEN NEW.transaction_type = 'IN' THEN NEW.quantity ELSE -NEW.quantity END
+                )
+                WHERE id = NEW.product_id;
+            END;
+        """))
+
+        # Sanitizar valores NULL en columnas recién agregadas para compatibilidad SQLite
+        conn.execute(text("UPDATE categories SET is_active = 1 WHERE is_active IS NULL;"))
+        conn.execute(text("UPDATE clients SET is_active = 1 WHERE is_active IS NULL;"))
+        conn.execute(text("UPDATE suppliers SET is_active = 1 WHERE is_active IS NULL;"))
+        conn.commit()
+
     with Session(engine) as session:
         config = session.exec(select(SystemConfig).limit(1)).first()
         if not config:
@@ -67,6 +109,13 @@ def init_db() -> None:
         session.commit()
         session.refresh(config)
 
+        # Sembrar Taxonomía de Productos de Google en primera instalación si las categorías están vacías
+        from local_backend.core.taxonomy_seeder import seed_google_taxonomy_if_empty
+        try:
+            seed_google_taxonomy_if_empty(session)
+        except Exception as err:
+            print(f"Error al verificar/sembrar la taxonomía de Google: {err}")
+
 
 def get_session() -> Generator[Session, None, None]:
     with Session(engine) as session:
@@ -81,3 +130,6 @@ def get_system_config(session: Session) -> SystemConfig:
         session.commit()
         session.refresh(config)
     return config
+
+init_db()
+

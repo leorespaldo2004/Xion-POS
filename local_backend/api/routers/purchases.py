@@ -18,6 +18,8 @@ class PurchaseItemDTO(BaseModel):
 class PurchaseCreateDTO(BaseModel):
     supplier_id: Optional[str] = None
     supplier_name: str
+    invoice_number: Optional[str] = None
+    exchange_rate: Optional[float] = 1.0
     total_amount_usd: float
     total_amount_bs: float
     payment_type: Optional[str] = "cash"
@@ -52,6 +54,8 @@ def register_purchase(payload: PurchaseCreateDTO, session: Session = Depends(get
             id=str(uuid4()),
             supplier_id=payload.supplier_id,
             supplier_name=payload.supplier_name,
+            invoice_number=payload.invoice_number,
+            exchange_rate=payload.exchange_rate or 1.0,
             total_amount_usd=payload.total_amount_usd,
             total_amount_bs=payload.total_amount_bs,
             payment_type=pay_type,
@@ -63,6 +67,27 @@ def register_purchase(payload: PurchaseCreateDTO, session: Session = Depends(get
             is_synced=False
         )
         session.add(new_purchase)
+
+        # Record payable ledger if supplier credit balance created
+        if payload.supplier_id and pending_usd > 0:
+            from local_backend.core.models import Supplier, SupplierPayablesLedger, PayableTxType
+            supplier = session.get(Supplier, payload.supplier_id)
+            if supplier:
+                supplier.current_balance_usd = (supplier.current_balance_usd or 0.0) + pending_usd
+                supplier.is_synced = False
+                session.add(supplier)
+
+                payable_entry = SupplierPayablesLedger(
+                    id=str(uuid4()),
+                    supplier_id=supplier.id,
+                    transaction_type=PayableTxType.CHARGE,
+                    amount_usd=pending_usd,
+                    exchange_rate=payload.exchange_rate or 1.0,
+                    amount_bs=pending_usd * (payload.exchange_rate or 1.0),
+                    reference_purchase_id=new_purchase.id,
+                    notes=f"Compra a crédito {payload.invoice_number or new_purchase.id[:8]}"
+                )
+                session.add(payable_entry)
 
         # Create Items and Update Inventory
         for item in payload.items:

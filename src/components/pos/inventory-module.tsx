@@ -575,8 +575,8 @@ export function InventoryModule() {
                 >
                   {imagePreviewUrl ? (
                     <img src={imagePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (editingProduct as any)?.image_id ? (
-                    <ProductImage imageId={(editingProduct as any).image_id} productName={editingProduct!.name} categoryName={editingProduct!.category_id || 'GEN'} size="medium" />
+                  ) : editingProduct?.image_id ? (
+                    <ProductImage imageId={editingProduct.image_id} productName={editingProduct.name} categoryName={editingProduct.category_id || 'GEN'} size="medium" />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-primary/50 group-hover:text-primary transition-colors">
                       <ImagePlus className="w-8 h-8 mb-2" />
@@ -603,7 +603,7 @@ export function InventoryModule() {
                     }}
                   />
                 </div>
-                {(imageFile || (editingProduct as any)?.image_id) && (
+                {(imageFile || editingProduct?.image_id) && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -614,11 +614,11 @@ export function InventoryModule() {
                       if (imageFile) {
                         setImageFile(null);
                         setImagePreviewUrl(null);
-                      } else if ((editingProduct as any)?.image_id) {
+                      } else if (editingProduct?.image_id) {
                         if (confirm("¿Estás seguro de eliminar la imagen del servidor? Esta acción no se puede deshacer.")) {
                           try {
                             await localApiClient.delete(`/inventory/products/${editingProduct!.id}/image`);
-                            setEditingProduct({ ...editingProduct!, image_id: null } as any);
+                            setEditingProduct({ ...editingProduct!, image_id: null });
                             queryClient.invalidateQueries({ queryKey: ["inventory"] });
                             toast.success("Imagen eliminada");
                           } catch (err) { toast.error("Error al eliminar la imagen"); }

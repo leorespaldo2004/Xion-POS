@@ -25,10 +25,13 @@ class SystemConfigUpdate(BaseModel):
     store_rif: str | None = None
     store_address: str | None = None
     store_phone: str | None = None
+    default_vat_rate: float | None = None
     tax_rate: float | None = None
+    igtf_rate: float | None = None
     enable_taxes: bool | None = None
     wholesale_enabled: bool | None = None
-    wholesale_min_qty: int | None = None
+    wholesale_min_qty: float | None = None
+    allow_negative_stock: bool | None = None
     auto_print: bool | None = None
     print_logo: bool | None = None
     ticket_size: str | None = None
@@ -66,10 +69,13 @@ def get_system_status(session: Session = Depends(get_session)) -> Dict[str, Any]
             "store_rif": config.store_rif,
             "store_address": config.store_address,
             "store_phone": config.store_phone,
+            "default_vat_rate": config.default_vat_rate,
             "tax_rate": config.tax_rate,
+            "igtf_rate": config.igtf_rate,
             "enable_taxes": config.enable_taxes,
             "wholesale_enabled": config.wholesale_enabled,
             "wholesale_min_qty": config.wholesale_min_qty,
+            "allow_negative_stock": config.allow_negative_stock,
             "auto_print": config.auto_print,
             "print_logo": config.print_logo,
             "ticket_size": config.ticket_size,

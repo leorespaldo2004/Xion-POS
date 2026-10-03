@@ -76,12 +76,13 @@ def _get_category_full_path(cat_id: Optional[str], session: Session) -> Optional
 
 @router.get("/products", response_model=List[ProductResponse])
 def get_products(session: Session = Depends(get_session)):
-    products = session.exec(select(Product).where(Product.is_deleted == False)).all()
+    products = session.exec(select(Product).where(Product.deleted_at == None)).all()
     
     response = []
     for product in products:
         prod_data = product.model_dump()
         prod_data["category_name"] = _get_category_full_path(product.category_id, session)
+        prod_data["image_id"] = product.image_url
         response.append(ProductResponse(**prod_data))
         
     return response
@@ -142,6 +143,11 @@ def get_categories(
         "page": page,
         "pages": math.ceil(total / limit) if limit > 0 else 1
     }
+
+@router.post("/categories/sync-taxonomy")
+def sync_taxonomy_endpoint(force: bool = False, session: Session = Depends(get_session)):
+    from local_backend.core.taxonomy_seeder import check_and_sync_google_taxonomy
+    return check_and_sync_google_taxonomy(session, force=force)
 
 @router.get("/categories/{category_id}")
 def get_category(category_id: str, session: Session = Depends(get_session)):
@@ -587,4 +593,59 @@ def delete_product_image_endpoint(product_id: str, session: Session = Depends(ge
         )
         
     return {"status": "success"}
+
+
+class ShrinkageCreateDTO(SQLModel):
+    product_id: str
+    quantity: float = Field(gt=0)
+    reason: str
+    user_id: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.post("/shrinkage", status_code=status.HTTP_201_CREATED)
+def register_inventory_shrinkage(payload: ShrinkageCreateDTO, session: Session = Depends(get_session)):
+    from local_backend.core.models import InventoryShrinkage
+    product = session.get(Product, payload.product_id)
+    if not product or product.is_deleted:
+        raise ProductNotFoundError(payload.product_id)
+
+    current_stock = product.cached_stock_quantity or 0.0
+    product.cached_stock_quantity = current_stock - payload.quantity
+    product.is_synced = False
+    session.add(product)
+
+    shrinkage = InventoryShrinkage(
+        id=str(uuid4()),
+        product_id=product.id,
+        quantity=payload.quantity,
+        reason=payload.reason,
+        user_id=payload.user_id,
+        notes=payload.notes
+    )
+    session.add(shrinkage)
+
+    kardex = InventoryTransaction(
+        id=str(uuid4()),
+        product_id=product.id,
+        transaction_type="OUT",
+        reason="SHRINKAGE",
+        quantity=payload.quantity,
+        reference_id=shrinkage.id,
+        user_id=payload.user_id
+    )
+    session.add(kardex)
+
+    session.commit()
+    session.refresh(shrinkage)
+
+    fire_audit_log(
+        module="inventory",
+        action="SHRINKAGE",
+        description=f"Merma/desincorporación de {payload.quantity} unidades de '{product.name}'. Motivo: {payload.reason}",
+        severity="WARNING",
+        entity_name="inventory_shrinkage",
+        entity_id=shrinkage.id,
+    )
+
+    return shrinkage
 

@@ -286,11 +286,11 @@ export function ClientsModule() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-semibold text-muted-foreground">
-                    ${client.credit_limit.toFixed(2)}
+                    ${(client.credit_limit ?? (client as any).credit_limit_usd ?? 0).toFixed(2)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={`font-black ${client.current_debt > 0 ? "text-destructive" : "text-primary"}`}>
-                      ${client.current_debt.toFixed(2)}
+                    <span className={`font-black ${(client.current_debt ?? (client as any).current_debt_usd ?? 0) > 0 ? "text-destructive" : "text-primary"}`}>
+                      ${(client.current_debt ?? (client as any).current_debt_usd ?? 0).toFixed(2)}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">

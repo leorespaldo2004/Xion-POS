@@ -18,16 +18,20 @@ from local_backend.api.utils.audit_service import log_event, fire_audit_log
 
 router = APIRouter(prefix="/cash-register", tags=["Cash Register"])
 
-class DrawerOpenDTO(BaseModel):
-    reason: str
+class DenominationItemDTO(BaseModel):
+    currency: str = Field(..., description="'USD' o 'VES'")
+    denomination_value: float = Field(..., gt=0)
+    bill_count: int = Field(..., ge=0)
 
 
 class SessionOpenDTO(BaseModel):
     user_id: str
     opening_balance_usd: float = 0.0
+    denominations: Optional[List[DenominationItemDTO]] = None
 
 class SessionCloseDTO(BaseModel):
     closing_balance_usd: float
+    denominations: Optional[List[DenominationItemDTO]] = None
 
 @router.get("/active", response_model=Optional[CashSession])
 def get_active_session(session: Session = Depends(get_session)):
@@ -111,6 +115,21 @@ def open_session(payload: SessionOpenDTO, session: Session = Depends(get_session
         updated_at=datetime.now(UTC)
     )
     session.add(new_session)
+
+    if payload.denominations:
+        from local_backend.core.models import CashSessionDenomination, DenominationType
+        for d in payload.denominations:
+            deno_rec = CashSessionDenomination(
+                id=str(uuid4()),
+                cash_session_id=new_session.id,
+                denomination_type=DenominationType.OPENING,
+                currency=d.currency,
+                denomination_value=d.denomination_value,
+                bill_count=d.bill_count,
+                total_amount=d.denomination_value * d.bill_count
+            )
+            session.add(deno_rec)
+
     session.commit()
     session.refresh(new_session)
     
@@ -168,6 +187,20 @@ def close_session(payload: SessionCloseDTO, session: Session = Depends(get_sessi
     active.updated_at = datetime.now(UTC)
     
     session.add(active)
+
+    if payload.denominations:
+        from local_backend.core.models import CashSessionDenomination, DenominationType
+        for d in payload.denominations:
+            deno_rec = CashSessionDenomination(
+                id=str(uuid4()),
+                cash_session_id=active.id,
+                denomination_type=DenominationType.CLOSING,
+                currency=d.currency,
+                denomination_value=d.denomination_value,
+                bill_count=d.bill_count,
+                total_amount=d.denomination_value * d.bill_count
+            )
+            session.add(deno_rec)
     
     # 4. Generar Reporte PDF
     # Determinar ruta del reporte (carpeta reports en el root del proyecto)

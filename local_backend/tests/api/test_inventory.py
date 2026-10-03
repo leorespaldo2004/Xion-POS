@@ -33,3 +33,10 @@ def test_create_combo_without_items_fails():
     response = client.post("/api/v1/inventory/products", json=payload)
     assert response.status_code == 400
     assert "Combos require" in response.json()["detail"]
+
+def test_sync_google_taxonomy_endpoint():
+    response = client.post("/api/v1/inventory/categories/sync-taxonomy?force=true")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert data["status"] in ("success", "already_up_to_date", "offline_error")

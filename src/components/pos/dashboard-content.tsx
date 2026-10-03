@@ -147,8 +147,8 @@ export function DashboardContent({ onOpenCaja, onCloseCaja }: DashboardContentPr
               <CardHeader className="pb-1 pt-3 px-4">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary/80 overflow-hidden">
-                    {method.imageUrl ? (
-                      <img src={`http://127.0.0.1:8000/static/payment_methods/thumb_${method.imageUrl}.webp`} alt={method.label} className="h-full w-full object-cover" />
+                    {method.imageUrl || (method as any).image_url ? (
+                      <img src={`http://127.0.0.1:8000/static/payment_methods/thumb_${method.imageUrl || (method as any).image_url}.webp`} alt={method.label} className="h-full w-full object-cover" />
                     ) : (
                       <method.icon className={`h-3.5 w-3.5 ${method.color}`} />
                     )}

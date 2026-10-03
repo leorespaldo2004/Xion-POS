@@ -1,5 +1,5 @@
 // filepath: src/components/pos/returns-module.tsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,16 @@ interface ReturnsModuleProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedSaleId?: string;
+  selectedNoteData?: {
+    id: string;
+    client_name?: string;
+    total_amount_usd?: number;
+    exchange_rate?: number;
+  };
 }
 
-export function ReturnsModule({ isOpen, onClose, preselectedSaleId }: ReturnsModuleProps) {
+export function ReturnsModule({ isOpen, onClose, preselectedSaleId, selectedNoteData }: ReturnsModuleProps) {
   // Estado local del módulo
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
@@ -39,30 +44,38 @@ export function ReturnsModule({ isOpen, onClose, preselectedSaleId }: ReturnsMod
   const [completedReturn, setCompletedReturn] = useState<SaleReturn | null>(null);
 
   // Queries & Mutations
-  const { data: sales = [], isLoading: loadingSales } = useSales();
+  const { data: sales = [] } = useSales();
   const { data: returnableItems = [], isLoading: loadingItems } = useSaleReturnableItems(
-    selectedSale?.id || preselectedSaleId
+    selectedSale?.id || preselectedSaleId || selectedNoteData?.id
   );
   const createReturnMutation = useCreateReturn();
 
-  // Filtrado de ventas en el paso 1
-  const filteredSales = useMemo(() => {
-    if (!searchTerm.trim()) return sales.slice(0, 20); // Mostrar las últimas 20 por defecto
-    const term = searchTerm.toLowerCase();
-    return sales.filter(
-      (s) =>
-        s.id.toLowerCase().includes(term) ||
-        (s.client_name && s.client_name.toLowerCase().includes(term))
-    );
-  }, [sales, searchTerm]);
-
-  // Selección de una venta
-  const handleSelectSale = (sale: Sale) => {
-    setSelectedSale(sale);
-    setReturnQuantities({});
-    setReason("");
-    setCompletedReturn(null);
-  };
+  useEffect(() => {
+    if (isOpen) {
+      const targetId = preselectedSaleId || selectedNoteData?.id;
+      if (targetId) {
+        const match = sales.find((s) => s.id === targetId);
+        if (match) {
+          setSelectedSale(match);
+        } else {
+          setSelectedSale({
+            id: targetId,
+            client_name: selectedNoteData?.client_name || "Cliente Final",
+            total_amount_usd: selectedNoteData?.total_amount_usd || 0,
+            total_amount_bs: (selectedNoteData?.total_amount_usd || 0) * (selectedNoteData?.exchange_rate || 36.5),
+            exchange_rate: selectedNoteData?.exchange_rate || 36.5,
+            status: "completed",
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+    } else {
+      setSelectedSale(null);
+      setCompletedReturn(null);
+      setReturnQuantities({});
+      setReason("");
+    }
+  }, [isOpen, preselectedSaleId, selectedNoteData, sales]);
 
   // Cambio de cantidad a devolver por producto
   const handleQuantityChange = (itemId: string, maxQty: number, val: string) => {
@@ -184,24 +197,18 @@ export function ReturnsModule({ isOpen, onClose, preselectedSaleId }: ReturnsMod
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                  Devoluciones & Notas de Crédito
+                  Devolución & Nota de Crédito
                 </DialogTitle>
                 <p className="text-xs text-muted-foreground">
-                  Procese devoluciones parciales o totales con reposición de inventario
+                  Procese devolución de productos con reposición de inventario
                 </p>
               </div>
             </div>
-
-            {selectedSale && !completedReturn && (
-              <Button variant="ghost" size="sm" onClick={() => setSelectedSale(null)} className="gap-2">
-                <ArrowLeft className="h-4 w-4" /> Cambiar Venta
-              </Button>
-            )}
           </div>
 
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            {/* PASO 4: Devolución Completada (Comprobante) */}
+            {/* PASO: Devolución Completada (Comprobante) */}
             {completedReturn ? (
               <div className="flex flex-col items-center justify-center py-6 space-y-6 text-center">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center animate-bounce">
@@ -266,80 +273,18 @@ export function ReturnsModule({ isOpen, onClose, preselectedSaleId }: ReturnsMod
                   <Button variant="outline" onClick={() => window.print()} className="gap-2">
                     <Printer className="h-4 w-4" /> Imprimir Comprobante
                   </Button>
-                  <Button onClick={handleReset} className="gap-2">
-                    <RotateCcw className="h-4 w-4" /> Nueva Devolución
+                  <Button onClick={onClose} className="gap-2">
+                    Cerrar
                   </Button>
                 </div>
               </div>
             ) : !selectedSale ? (
-              /* PASO 1: Búsqueda y Selección de Venta */
-              <div className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar venta por código de ticket (ej. sale_100) o cliente..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11 text-sm bg-background rounded-xl border-border"
-                  />
-                </div>
-
-                {loadingSales ? (
-                  <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
-                    <RefreshCw className="h-5 w-5 animate-spin text-primary" />
-                    Cargando ventas...
-                  </div>
-                ) : filteredSales.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
-                    <PackageX className="h-10 w-10 stroke-1" />
-                    <p className="text-sm font-medium">No se encontraron ventas coincidentes</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto pr-1">
-                    {filteredSales.map((sale) => (
-                      <div
-                        key={sale.id}
-                        onClick={() => handleSelectSale(sale)}
-                        className="p-4 rounded-xl border border-border bg-card hover:bg-accent/40 cursor-pointer transition-all flex flex-col justify-between space-y-3 hover:border-primary/50 shadow-sm"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="font-mono font-bold text-sm text-foreground">{sale.id}</span>
-                            <p className="text-xs text-muted-foreground">{sale.client_name || "Cliente Final"}</p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={
-                              sale.status === "completed"
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]"
-                                : sale.status === "partially_refunded"
-                                ? "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]"
-                                : "bg-red-500/10 text-red-600 border-red-500/20 text-[10px]"
-                            }
-                          >
-                            {sale.status === "completed"
-                              ? "COMPLETADA"
-                              : sale.status === "partially_refunded"
-                              ? "PARCIALMENTE DEVUELTA"
-                              : "DEVUELTA TOTAL"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex justify-between items-center text-xs pt-2 border-t border-border/50">
-                          <span className="text-muted-foreground">
-                            {new Date(sale.created_at).toLocaleDateString()} {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <span className="font-bold text-sm text-primary">
-                            ${sale.total_amount_usd.toFixed(2)} USD
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+                <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+                Cargando datos del documento...
               </div>
             ) : (
-              /* PASO 2: Selección de Ítems a Devolver */
+              /* Selección de Ítems a Devolver */
               <div className="space-y-6">
                 {/* Cabecera de la Venta Seleccionada */}
                 <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-wrap justify-between items-center gap-4">

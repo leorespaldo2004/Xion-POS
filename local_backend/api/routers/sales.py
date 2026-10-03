@@ -67,6 +67,7 @@ class SaleCreateDTO(BaseModel):
     client_name: str = "Cliente Final"
     subtotal_usd: float
     tax_amount_usd: float
+    igtf_amount_usd: float = 0.0
     total_amount_usd: float
     total_amount_bs: float
     exchange_rate: float
@@ -179,6 +180,7 @@ def register_sale(payload: SaleCreateDTO, session: Session = Depends(get_session
             client_name=payload.client_name,
             subtotal_usd=payload.subtotal_usd,
             tax_amount_usd=payload.tax_amount_usd,
+            igtf_amount_usd=payload.igtf_amount_usd,
             total_amount_usd=payload.total_amount_usd,
             total_amount_bs=payload.total_amount_bs,
             exchange_rate=payload.exchange_rate,
@@ -239,6 +241,19 @@ def register_sale(payload: SaleCreateDTO, session: Session = Depends(get_session
                 client.current_debt += pmt.amount_usd
                 client.is_synced = False
                 session.add(client)
+
+                from local_backend.core.models import ClientReceivablesLedger, ReceivableTxType
+                receivable_entry = ClientReceivablesLedger(
+                    id=str(uuid4()),
+                    client_id=client.id,
+                    transaction_type=ReceivableTxType.CHARGE,
+                    amount_usd=pmt.amount_usd,
+                    exchange_rate=payload.exchange_rate,
+                    amount_bs=pmt.amount_usd * payload.exchange_rate,
+                    reference_sale_id=new_sale.id,
+                    notes=f"Venta a crédito {new_sale.id[:8]}"
+                )
+                session.add(receivable_entry)
 
         # --- Procesar ítems y descontar inventario ---
         for item in payload.items:

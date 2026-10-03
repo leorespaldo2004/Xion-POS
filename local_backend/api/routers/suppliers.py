@@ -27,13 +27,22 @@ class SupplierNotFoundError(HTTPException):
 
 @router.get("", response_model=List[Supplier])
 def get_suppliers(session: Session = Depends(get_session)):
-    statement = select(Supplier)
+    statement = select(Supplier).where(Supplier.deleted_at == None)
     results = session.exec(statement).all()
     return results
 
+@router.get("/{supplier_id}/ledger")
+def get_supplier_ledger(supplier_id: str, session: Session = Depends(get_session)):
+    from local_backend.core.models import SupplierPayablesLedger
+    supplier = session.get(Supplier, supplier_id)
+    if not supplier or supplier.deleted_at is not None:
+        raise SupplierNotFoundError(supplier_id)
+    statement = select(SupplierPayablesLedger).where(SupplierPayablesLedger.supplier_id == supplier_id).order_by(SupplierPayablesLedger.created_at.desc())
+    return session.exec(statement).all()
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=Supplier)
 def create_supplier(payload: SupplierCreate, session: Session = Depends(get_session)):
-    existing_id = session.exec(select(Supplier).where(Supplier.identification_number == payload.identification_number)).first()
+    existing_id = session.exec(select(Supplier).where(Supplier.identification_number == payload.identification_number, Supplier.deleted_at == None)).first()
     if existing_id:
         raise HTTPException(status_code=409, detail="Identification number already registered")
 
@@ -55,11 +64,11 @@ def create_supplier(payload: SupplierCreate, session: Session = Depends(get_sess
 @router.put("/{supplier_id}", response_model=Supplier)
 def update_supplier(supplier_id: str, updated_data: Dict[str, object], session: Session = Depends(get_session)):
     supplier = session.get(Supplier, supplier_id)
-    if not supplier:
+    if not supplier or supplier.deleted_at is not None:
         raise SupplierNotFoundError(supplier_id)
             
     if "identification_number" in updated_data and updated_data["identification_number"] != supplier.identification_number:
-        existing = session.exec(select(Supplier).where(Supplier.identification_number == updated_data["identification_number"])).first()
+        existing = session.exec(select(Supplier).where(Supplier.identification_number == updated_data["identification_number"], Supplier.deleted_at == None)).first()
         if existing:
             raise HTTPException(status_code=409, detail="Identification number already registered")
 
@@ -77,7 +86,9 @@ def update_supplier(supplier_id: str, updated_data: Dict[str, object], session: 
 @router.delete("/{supplier_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_supplier(supplier_id: str, session: Session = Depends(get_session)):
     supplier = session.get(Supplier, supplier_id)
-    if not supplier:
+    if not supplier or supplier.deleted_at is not None:
         raise SupplierNotFoundError(supplier_id)
-    session.delete(supplier)
+    supplier.deleted_at = datetime.utcnow()
+    supplier.is_synced = False
+    session.add(supplier)
     session.commit()
