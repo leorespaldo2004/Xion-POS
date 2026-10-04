@@ -1,13 +1,21 @@
-// filepath: src/components/pos/returns-module.tsx
 import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { SecurityApprovalModal } from "@/components/shared/security-approval-modal";
 import { useSales, Sale } from "@/hooks/queries/use-sales";
 import { useSaleReturnableItems, useCreateReturn, ReturnableItem, SaleReturn } from "@/hooks/queries/use-returns";
+import { cn } from "@/lib/utils";
 import {
   RotateCcw,
   Search,
@@ -316,66 +324,96 @@ export function ReturnsModule({ isOpen, onClose, preselectedSaleId, selectedNote
                       Esta venta no contiene productos disponibles para devolución.
                     </div>
                   ) : (
-                    <div className="border border-border rounded-xl overflow-hidden bg-background">
-                      <div className="divide-y divide-border">
-                        {returnableItems.map((item) => {
-                          const currentQty = returnQuantities[item.sale_item_id] || 0;
-                          const isFullyReturned = item.remaining_quantity <= 0;
+                    <div className="rounded-xl border border-border overflow-hidden bg-background">
+                      <Table>
+                        <TableHeader className="bg-secondary/50">
+                          <TableRow>
+                            <TableHead>Producto</TableHead>
+                            <TableHead className="text-right">Precio Unit.</TableHead>
+                            <TableHead className="text-center">Vendido</TableHead>
+                            <TableHead className="text-center">Ya Devuelto</TableHead>
+                            <TableHead className="text-center">Disponible</TableHead>
+                            <TableHead className="text-right w-56">Cantidad a Devolver</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {returnableItems.map((item) => {
+                            const currentQty = returnQuantities[item.sale_item_id] || 0;
+                            const isFullyReturned = item.remaining_quantity <= 0;
 
-                          return (
-                            <div
-                              key={item.sale_item_id}
-                              className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
-                                isFullyReturned ? "opacity-50 bg-muted/20" : currentQty > 0 ? "bg-primary/5" : ""
-                              }`}
-                            >
-                              <div className="space-y-1 flex-1">
-                                <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                                  {item.product_name}
-                                  {isFullyReturned && (
-                                    <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/20">
-                                      DEVUELTO COMPLETO
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="text-xs text-muted-foreground flex gap-4">
-                                  <span>Precio Unit: <strong>${item.unit_price_usd.toFixed(2)}</strong></span>
-                                  <span>Vendido: <strong>{item.original_quantity}</strong></span>
-                                  <span>Ya Devuelto: <strong>{item.already_returned_quantity}</strong></span>
-                                  <span>Disponible: <strong className="text-primary">{item.remaining_quantity}</strong></span>
-                                </div>
-                              </div>
-
-                              {/* Controles de Selección de Cantidad */}
-                              {!isFullyReturned && (
-                                <div className="flex items-center gap-3">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleSelectAllItem(item)}
-                                    className="text-xs h-9 px-3 border-border"
-                                  >
-                                    {currentQty === item.remaining_quantity ? "Desmarcar" : "Devolver Todo"}
-                                  </Button>
-
-                                  <div className="flex items-center gap-1">
-                                    <Label className="text-xs text-muted-foreground">Cant:</Label>
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      max={item.remaining_quantity}
-                                      step={1}
-                                      value={currentQty === 0 ? "" : currentQty}
-                                      onChange={(e) => handleQuantityChange(item.sale_item_id, item.remaining_quantity, e.target.value)}
-                                      className="w-20 h-9 text-center font-bold text-sm border-border bg-background"
-                                    />
+                            return (
+                              <TableRow
+                                key={item.sale_item_id}
+                                className={cn(
+                                  "transition-colors",
+                                  isFullyReturned
+                                    ? "opacity-50 bg-muted/20"
+                                    : currentQty > 0
+                                    ? "bg-primary/5 font-medium"
+                                    : ""
+                                )}
+                              >
+                                <TableCell>
+                                  <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                                    {item.product_name}
+                                    {isFullyReturned && (
+                                      <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/20">
+                                        DEVUELTO
+                                      </Badge>
+                                    )}
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm">
+                                  ${item.unit_price_usd.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-center font-mono text-sm font-semibold">
+                                  {item.original_quantity}
+                                </TableCell>
+                                <TableCell className="text-center font-mono text-sm text-muted-foreground">
+                                  {item.already_returned_quantity}
+                                </TableCell>
+                                <TableCell className="text-center font-mono text-sm font-bold text-primary">
+                                  {item.remaining_quantity}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {!isFullyReturned && (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleSelectAllItem(item)}
+                                        className="text-xs h-8 px-2.5 border-border"
+                                      >
+                                        {currentQty === item.remaining_quantity ? "Desmarcar" : "Todo"}
+                                      </Button>
+
+                                      <div className="flex items-center gap-1 bg-secondary/50 p-0.5 rounded-lg border border-border">
+                                        <Input
+                                          type="number"
+                                          min={0}
+                                          max={item.remaining_quantity}
+                                          step={1}
+                                          value={currentQty === 0 ? "" : currentQty}
+                                          onChange={(e) =>
+                                            handleQuantityChange(
+                                              item.sale_item_id,
+                                              item.remaining_quantity,
+                                              e.target.value
+                                            )
+                                          }
+                                          className="w-16 h-8 text-center font-bold text-sm bg-background border-border"
+                                          placeholder="0"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </div>

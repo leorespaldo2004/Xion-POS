@@ -151,6 +151,7 @@ def create_delivery_note(payload: DeliveryNoteCreateDTO, session: Session = Depe
         pdf_path = os.path.join(pdf_dir, pdf_filename)
 
         client_identifier = ""
+        client_address = ""
         if payload.client_id:
             client_obj = session.get(Client, payload.client_id)
             if client_obj:
@@ -158,6 +159,7 @@ def create_delivery_note(payload: DeliveryNoteCreateDTO, session: Session = Depe
                 id_type = getattr(client_obj, "identification_type", "") or ""
                 if id_num:
                     client_identifier = f"{id_type}-{id_num}".strip("-") if id_type else str(id_num)
+                client_address = getattr(client_obj, "address", "") or ""
 
         note_data = {
             "store_name": config.store_name,
@@ -171,6 +173,7 @@ def create_delivery_note(payload: DeliveryNoteCreateDTO, session: Session = Depe
             "document_number": str(next_number).zfill(6),
             "client_name": payload.client_name,
             "client_identifier": client_identifier,
+            "client_address": client_address,
             "date": datetime.now().strftime("%d/%m/%Y %H:%M"),
             "subtotal_usd": payload.subtotal_usd,
             "tax_amount_usd": payload.total_amount_usd - payload.subtotal_usd,
@@ -207,18 +210,71 @@ def get_delivery_notes(session: Session = Depends(get_session)):
 @router.get("/{id}/pdf")
 def get_delivery_note_pdf(id: str, session: Session = Depends(get_session)):
     note = session.get(DeliveryNote, id)
-    if not note or not note.pdf_path:
-        raise HTTPException(status_code=404, detail="PDF no encontrado")
+    if not note:
+        raise HTTPException(status_code=404, detail="Nota de Entrega no encontrada")
     
-    pdf_path = os.path.join(os.getcwd(), "data", "delivery_notes", note.pdf_path)
-    if not os.path.exists(pdf_path):
-        raise HTTPException(status_code=404, detail="Archivo PDF físico no encontrado")
-        
+    pdf_dir = os.path.join(os.getcwd(), "data", "delivery_notes")
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    if not note.pdf_path:
+        note.pdf_path = f"{note.document_type}_{note.document_number or 0}_{note.id[:8]}.pdf"
+        session.add(note)
+        session.commit()
+
+    safe_filename = os.path.basename(note.pdf_path)
+    file_full_path = os.path.join(pdf_dir, safe_filename)
+
+    if not os.path.exists(file_full_path):
+        # Regenerar dinámicamente si el archivo PDF físico no existe
+        config = get_system_config(session)
+        items_db = session.exec(select(DeliveryNoteItem).where(DeliveryNoteItem.delivery_note_id == note.id)).all()
+        items_for_pdf = [{
+            "product_name": it.product_name,
+            "quantity": it.quantity,
+            "unit_price_usd": it.unit_price_usd,
+            "total_price_usd": it.total_price_usd,
+            "unit_price_bs": it.unit_price_usd * note.exchange_rate,
+            "total_price_bs": it.total_price_usd * note.exchange_rate
+        } for it in items_db]
+
+        client_identifier = ""
+        client_address = ""
+        if note.client_id:
+            client_obj = session.get(Client, note.client_id)
+            if client_obj:
+                id_num = getattr(client_obj, "identification_number", None) or getattr(client_obj, "identifier", None)
+                id_type = getattr(client_obj, "identification_type", "") or ""
+                if id_num:
+                    client_identifier = f"{id_type}-{id_num}".strip("-") if id_type else str(id_num)
+                client_address = getattr(client_obj, "address", "") or ""
+
+        note_data = {
+            "store_name": config.store_name,
+            "store_rif": config.store_rif,
+            "store_address": config.store_address,
+            "store_phone": config.store_phone,
+            "ticket_message": config.ticket_message,
+            "tax_rate": config.tax_rate or 16,
+            "enable_taxes": getattr(config, "enable_taxes", True),
+            "document_type": note.document_type,
+            "document_number": str(note.document_number or 0).zfill(6),
+            "client_name": note.client_name,
+            "client_identifier": client_identifier,
+            "client_address": client_address,
+            "date": note.created_at.strftime("%d/%m/%Y %H:%M") if note.created_at else "",
+            "subtotal_usd": note.subtotal_usd,
+            "tax_amount_usd": note.total_amount_usd - note.subtotal_usd,
+            "total_amount_usd": note.total_amount_usd,
+            "total_amount_bs": note.total_amount_bs,
+            "exchange_rate": note.exchange_rate
+        }
+        generate_delivery_note_pdf(note_data, items_for_pdf, file_full_path, config.ticket_size)
+
     return FileResponse(
-        pdf_path, 
-        media_type="application/pdf", 
-        filename=note.pdf_path,
-        headers={"Content-Disposition": f"inline; filename={note.pdf_path}"}
+        file_full_path,
+        media_type="application/pdf",
+        filename=safe_filename,
+        headers={"Content-Disposition": f"inline; filename={safe_filename}"}
     )
 
 @router.post("/{id}/cancel")

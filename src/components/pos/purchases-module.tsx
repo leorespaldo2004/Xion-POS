@@ -31,7 +31,8 @@ import {
   Calendar,
   AlertCircle,
   Receipt,
-  Wallet
+  Wallet,
+  PanelRightOpen
 } from "lucide-react"
 
 import {
@@ -42,6 +43,13 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
+
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 
 import { ProductImage } from "./product-image"
 import { ProductGridList } from "./product-grid-list"
@@ -79,6 +87,7 @@ export function PurchasesModule() {
   const [searchTerm, setSearchTerm] = useState("")
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
   const [supplierName, setSupplierName] = useState("")
+  const [isBatchDrawerOpen, setIsBatchDrawerOpen] = useState(false)
 
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards")
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -138,7 +147,7 @@ export function PurchasesModule() {
       product.name.toLowerCase().includes(term) ||
       product.sku.toLowerCase().includes(term) ||
       (product.barcode || "").toLowerCase().includes(term) ||
-      (product.tags || "").split(',').some(tag => tag.trim().toLowerCase().includes(term))
+      ((product as any).tags || "").split(',').some((tag: string) => tag.trim().toLowerCase().includes(term))
 
     return matchesSearch
   })
@@ -416,19 +425,35 @@ export function PurchasesModule() {
         </div>
       </div>
 
-      {/* Panel Derecho - Recepción Detallada estilo Ticket */}
-      <Card className="w-[640px] lg:w-[820px] xl:w-[520px] border-2 border-border shadow-xl flex flex-col shrink-0">
-        <CardContent className="flex h-full flex-col p-2.5 gap-1.5">
-          {/* Cabecera Entrada de Lote */}
+      {/* Panel Derecho - Cinta / Barra Lateral Compacta */}
+      <Card className="w-72 lg:w-80 border-2 border-border shadow-lg flex flex-col shrink-0">
+        <CardContent className="flex h-full flex-col p-3 gap-2">
+          {/* Cabecera Cinta / Barra */}
           <div className="flex items-center justify-between pb-1">
-            <div className="flex flex-col">
-              <h2 className="text-base font-black text-foreground leading-none flex items-center gap-1.5 uppercase">
-                <ShoppingBag className="h-4 w-4 text-primary" /> Entrada de Lote
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1 font-mono">
-                Ref: {new Date().toLocaleDateString("es-VE").replace(/\//g, '')}
-              </p>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div className="flex flex-col">
+                <h2 className="text-sm font-black text-foreground leading-tight uppercase">
+                  Entrada de Lote
+                </h2>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {purchaseItems.length} {purchaseItems.length === 1 ? 'producto' : 'productos'}
+                </span>
+              </div>
             </div>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setIsBatchDrawerOpen(true)}
+              className="h-8 px-2.5 gap-1.5 text-xs font-black rounded-lg shadow-sm"
+              title="Expandir tabla completa de la recepción"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Desplegar</span>
+            </Button>
           </div>
 
           {/* Selector de Proveedor */}
@@ -444,10 +469,154 @@ export function PurchasesModule() {
               getItemValue={(s) => s.name}
               emptyMessage="No se encontró el proveedor."
               trigger={
-                <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-muted/40 px-2 py-0.5 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary cursor-pointer hover:border-primary transition-colors">
+                <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-muted/40 px-2.5 py-1 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary cursor-pointer hover:border-primary transition-colors">
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className={cn(
-                    "h-7 text-xs font-bold flex items-center flex-1 truncate",
+                    "h-6 text-xs font-bold flex items-center flex-1 truncate",
+                    supplierName ? "text-foreground font-black" : "text-muted-foreground"
+                  )}>
+                    {supplierName || "Seleccionar Proveedor..."}
+                  </span>
+                </div>
+              }
+              renderItem={(s) => (
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm tracking-tight text-foreground">{s.name}</span>
+                    <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0 h-4">{s.category}</Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-muted-foreground font-mono text-[10px]">
+                    <span>{s.identification_type}: {s.identification_number}</span>
+                    <span className="opacity-50">•</span>
+                    <span>{s.phone}</span>
+                  </div>
+                </div>
+              )}
+            />
+          </div>
+
+          <Separator className="bg-border h-[2px]" />
+
+          {/* Resumen de Lista Compacto */}
+          <div className="flex-1 overflow-y-auto p-1.5 bg-background border-2 border-border rounded-xl min-h-0 flex flex-col">
+            {purchaseItems.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 opacity-40 py-8">
+                <FileText className="h-8 w-8 text-foreground" />
+                <p className="text-xs font-black text-center px-4 uppercase tracking-wide text-foreground">
+                  Pulse en los productos para agregarlos
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 overflow-y-auto pr-0.5">
+                {purchaseItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2 bg-card border-2 border-border hover:border-primary rounded-lg transition-all text-xs"
+                  >
+                    <div className="flex-1 min-w-0 pr-2">
+                      <h4 className="font-black text-foreground truncate leading-tight">
+                        {item.name}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
+                        <span className="font-bold text-foreground">x{item.quantity}</span>
+                        <span>•</span>
+                        <span>${formatLocalNumber(item.internalCostUSD)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="font-black text-primary font-mono text-xs">
+                        ${formatLocalNumber(item.internalCostUSD * item.quantity)}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-muted-foreground hover:bg-destructive hover:text-white rounded transition-colors"
+                        onClick={() => removeItem(item.id!)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator className="bg-border h-[2px]" />
+
+          {/* Resumen de Totales */}
+          <div className="space-y-1 py-1">
+            <div className="flex items-end justify-between">
+              <div className="flex flex-col">
+                <span className="text-[0.65rem] font-black text-muted-foreground tracking-tighter leading-none">TOTAL USD</span>
+                <p className="text-lg font-black text-primary leading-none mt-0.5 font-mono">
+                  ${formatLocalNumber(subtotal)}
+                </p>
+              </div>
+              <div className="text-right flex flex-col items-end">
+                <p className="text-[0.65rem] font-black text-muted-foreground tracking-tighter opacity-80 mb-0.5">MONEDA LOCAL</p>
+                <p className="text-xs font-black text-primary-foreground bg-primary px-2 py-0.5 rounded shadow-xs font-mono">
+                  BS {formatLocalNumber(totalBs)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Acciones de Cinta */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsBatchDrawerOpen(true)}
+              className="w-full h-9 font-black text-xs uppercase rounded-xl border-2 border-border hover:bg-muted transition-all flex items-center justify-center gap-2"
+            >
+              <PanelRightOpen className="h-4 w-4 text-primary" />
+              Desplegar Tabla Completa
+            </Button>
+
+            <Button
+              disabled={purchaseItems.length === 0 || !supplierName.trim() || createPurchase.isPending}
+              onClick={handleOpenPaymentModal}
+              className="w-full h-10 font-black text-xs uppercase rounded-xl shadow-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50"
+            >
+              {createPurchase.isPending ? "Procesando..." : "Liquidar Ingreso"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Componente Desplegable Lateral (Sheet) para ampliar Entrada de Lote */}
+      <Sheet open={isBatchDrawerOpen} onOpenChange={setIsBatchDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl p-6 flex flex-col gap-4 overflow-y-auto border-l-2 border-border shadow-2xl">
+          <SheetHeader className="p-0 pb-3 border-b border-border">
+            <SheetTitle className="text-xl font-black flex items-center justify-between">
+              <span className="flex items-center gap-2 uppercase text-foreground">
+                <ShoppingBag className="h-6 w-6 text-primary" /> Entrada de Lote (Vista Expandida)
+              </span>
+              <Badge variant="outline" className="font-mono text-xs mr-8 px-3 py-1">
+                Ref: {new Date().toLocaleDateString("es-VE").replace(/\//g, '')}
+              </Badge>
+            </SheetTitle>
+          </SheetHeader>
+
+          {/* Selector de Proveedor en Drawer */}
+          <div className="flex flex-col gap-1 pt-1">
+            <label className="text-xs font-black uppercase text-muted-foreground tracking-wider">Proveedor / Origen</label>
+            <GenericSelector
+              title="Seleccionar Proveedor"
+              description="Directorio Maestro de Proveedores de Xion POS"
+              placeholder="Buscar por nombre, RIF o categoría..."
+              items={suppliers}
+              isLoading={isLoadingSuppliers}
+              selectedValue={supplierName}
+              onSelect={(s) => setSupplierName(s.name)}
+              getItemValue={(s) => s.name}
+              emptyMessage="No se encontró el proveedor."
+              trigger={
+                <div className="flex items-center gap-2 rounded-xl border-2 border-border bg-muted/40 px-3 py-1 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary cursor-pointer hover:border-primary transition-colors">
+                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className={cn(
+                    "h-8 text-sm font-bold flex items-center flex-1 truncate",
                     supplierName ? "text-foreground font-black" : "text-muted-foreground"
                   )}>
                     {supplierName || "Seleccionar Proveedor u Origen..."}
@@ -470,130 +639,127 @@ export function PurchasesModule() {
             />
           </div>
 
-          <Separator className="bg-border h-[2px]" />
-
-          {/* Contenedor principal de ítems */}
-          <div className="flex-1 overflow-y-auto p-1 bg-background border-2 border-border rounded-md min-h-0 flex flex-col">
+          {/* Contenedor de Ítems Expandido */}
+          <div className="flex-1 bg-card border-2 border-border rounded-xl p-3 min-h-[320px] flex flex-col">
             {purchaseItems.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 opacity-40">
-                <FileText className="h-10 w-10 text-foreground" />
-                <p className="text-xs font-black text-center px-8 uppercase tracking-wide text-foreground">
-                  Pulse en los ítems para construir el lote
+              <div className="flex h-full flex-col items-center justify-center gap-3 opacity-40 py-16">
+                <FileText className="h-12 w-12 text-foreground" />
+                <p className="text-sm font-black text-center px-8 uppercase tracking-wide text-foreground">
+                  Pulse en los ítems del catálogo para construir el lote
                 </p>
               </div>
             ) : (
               <div className="flex flex-col h-full">
-                <div className="flex gap-1.5 px-2 py-1 text-[0.65rem] font-black text-foreground uppercase tracking-widest border-b-2 border-border bg-muted/30">
-                  <div className="flex-1">Producto</div>
-                  <div className="w-10 text-center shrink-0">Lotes</div>
-                  <div className="w-14 text-center shrink-0">Cant.</div>
-                  <div className="w-22 text-right shrink-0">USD ($)</div>
-                  <div className="w-24 text-right shrink-0">BS (Bs)</div>
-                  <div className="w-16 text-right shrink-0">Total</div>
-                  <div className="w-6 shrink-0"></div>
+                {/* Cabecera con espacio ultra holgado */}
+                <div className="flex gap-2 px-3 py-2 text-xs font-black text-foreground uppercase tracking-widest border-b-2 border-border bg-muted/40 rounded-t-lg">
+                  <div className="flex-1 min-w-[180px]">Producto</div>
+                  <div className="w-16 text-center shrink-0">Lotes</div>
+                  <div className="w-28 text-center shrink-0">Cantidad</div>
+                  <div className="w-36 text-right shrink-0">Costo USD ($)</div>
+                  <div className="w-40 text-right shrink-0">Costo BS (Bs)</div>
+                  <div className="w-28 text-right shrink-0">Total USD</div>
+                  <div className="w-8 shrink-0"></div>
                 </div>
 
-                <div className="overflow-y-auto flex-1 space-y-1.5 p-1">
+                <div className="overflow-y-auto flex-1 space-y-2 p-1 mt-1">
                   {purchaseItems.map((item) => (
                     <div
                       key={item.id}
-                      className="group flex flex-col bg-card border-2 border-border hover:border-primary hover:shadow-md rounded-md overflow-visible transition-all"
+                      className="flex items-center gap-2 p-2.5 bg-background border-2 border-border hover:border-primary rounded-xl transition-all shadow-xs"
                     >
-                      <div className="flex items-center gap-1.5 p-1.5">
-                        {/* Info Básica */}
-                        <div className="flex-1 min-w-0 pr-1 select-none">
-                          <h4 className="text-xs font-black text-foreground leading-tight truncate">
-                            {item.name}
-                          </h4>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[0.65rem] font-bold text-muted-foreground font-mono bg-muted/80 px-1 py-px rounded truncate">
-                              {item.sku}
-                            </span>
-                            <span className="text-[0.65rem] font-bold text-primary whitespace-nowrap">Ant: ${item.cost_usd.toFixed(2)}</span>
-                          </div>
+                      {/* Info Producto */}
+                      <div className="flex-1 min-w-[180px]">
+                        <h4 className="text-sm font-black text-foreground leading-tight">
+                          {item.name}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-bold text-muted-foreground font-mono bg-muted/80 px-1.5 py-0.5 rounded">
+                            SKU: {item.sku}
+                          </span>
+                          <span className="text-xs font-bold text-primary">Costo Anterior: ${item.cost_usd.toFixed(2)}</span>
                         </div>
+                      </div>
 
-                        {/* Lotes Input */}
-                        <div className="flex items-center justify-center shrink-0 w-10 pr-0.5">
-                          <div className="relative flex items-center w-full">
-                            <span className="absolute left-0.5 text-[8px] text-muted-foreground font-black pointer-events-none">Lx</span>
-                            <Input
-                              type="text"
-                              value={item.lotsInput}
-                              onChange={(e) => updateLots(item.id!, e.target.value)}
-                              className="w-full text-center text-xs font-black font-mono pl-3 pr-0.5 py-0 h-6 bg-muted/30 border-2 border-border rounded focus-visible:ring-0 focus-visible:border-primary transition-all"
-                            />
-                          </div>
+                      {/* Lotes */}
+                      <div className="w-16 shrink-0">
+                        <div className="relative flex items-center">
+                          <span className="absolute left-1.5 text-xs text-muted-foreground font-black pointer-events-none">Lx</span>
+                          <Input
+                            type="text"
+                            value={item.lotsInput}
+                            onChange={(e) => updateLots(item.id!, e.target.value)}
+                            className="w-full text-center text-sm font-black font-mono pl-6 pr-1 py-1 h-9 bg-muted/30 border-2 border-border rounded-lg focus-visible:ring-0 focus-visible:border-primary"
+                          />
                         </div>
+                      </div>
 
-                        {/* Cantidad Input Editable */}
-                        <div className="flex items-center justify-center shrink-0 w-14">
-                          <div className="flex w-full overflow-hidden rounded bg-muted/30 border-2 border-border text-foreground transition-all hover:border-primary/80 focus-within:border-primary">
-                            <button onClick={() => updateQuantity(item.id!, -1)} className="w-4 flex items-center justify-center hover:bg-primary/20 font-black text-xs transition-colors">
-                              -
-                            </button>
-                            <Input
-                              type="text"
-                              value={item.quantity === 0 ? "" : item.quantity}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                                const parsedQty = isNaN(val) ? 0 : val;
-                                setPurchaseItems(purchaseItems.map(i => i.id === item.id ? {
-                                  ...i,
-                                  quantity: parsedQty,
-                                  lotsInput: Number((parsedQty / (i.package_quantity || 1)).toFixed(2)).toString()
-                                } : i))
-                              }}
-                              onBlur={() => setPurchaseItems(items => items.filter(i => i.quantity > 0))}
-                              className="flex-1 text-center text-xs font-black font-mono border-x-2 border-y-0 border-border p-0 h-6 bg-background rounded-none shadow-none focus-visible:ring-0 focus-visible:outline-none"
-                            />
-                            <button onClick={() => updateQuantity(item.id!, 1)} className="w-4 flex items-center justify-center hover:bg-primary/20 font-black text-xs transition-colors">
-                              +
-                            </button>
-                          </div>
+                      {/* Cantidad */}
+                      <div className="w-28 shrink-0">
+                        <div className="flex w-full overflow-hidden rounded-lg bg-muted/30 border-2 border-border text-foreground">
+                          <button onClick={() => updateQuantity(item.id!, -1)} className="w-8 h-9 flex items-center justify-center hover:bg-primary/20 font-black text-sm transition-colors shrink-0">
+                            -
+                          </button>
+                          <Input
+                            type="text"
+                            value={item.quantity === 0 ? "" : item.quantity}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                              const parsedQty = isNaN(val) ? 0 : val;
+                              setPurchaseItems(purchaseItems.map(i => i.id === item.id ? {
+                                ...i,
+                                quantity: parsedQty,
+                                lotsInput: Number((parsedQty / (i.package_quantity || 1)).toFixed(2)).toString()
+                              } : i))
+                            }}
+                            onBlur={() => setPurchaseItems(items => items.filter(i => i.quantity > 0))}
+                            className="flex-1 text-center text-sm font-black font-mono border-x-2 border-y-0 border-border p-0 h-9 bg-background rounded-none shadow-none focus-visible:ring-0 focus-visible:outline-none min-w-0"
+                          />
+                          <button onClick={() => updateQuantity(item.id!, 1)} className="w-8 h-9 flex items-center justify-center hover:bg-primary/20 font-black text-sm transition-colors shrink-0">
+                            +
+                          </button>
                         </div>
+                      </div>
 
-                        {/* Modificar Costo USD (Ampliado a w-22) */}
-                        <div className="w-22 shrink-0 px-0.5">
-                          <div className="relative flex items-center">
-                            <span className="absolute left-1.5 text-[9px] text-muted-foreground font-black pointer-events-none">$</span>
-                            <Input
-                              type="text"
-                              value={item.costInputUSD || ""}
-                              onChange={(e) => updateCostUSD(item.id!, e.target.value)}
-                              onBlur={() => handleBlur(item.id!, "USD")}
-                              className="h-6 text-xs font-black font-mono text-right pl-4 pr-1 py-0 rounded bg-background border-2 border-border shadow-none focus-visible:ring-0 focus-visible:border-primary transition-all"
-                            />
-                          </div>
+                      {/* Costo USD (Totalmente Holgado w-36) */}
+                      <div className="w-36 shrink-0">
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-xs text-muted-foreground font-black pointer-events-none">$</span>
+                          <Input
+                            type="text"
+                            value={item.costInputUSD || ""}
+                            onChange={(e) => updateCostUSD(item.id!, e.target.value)}
+                            onBlur={() => handleBlur(item.id!, "USD")}
+                            className="h-9 text-sm font-black font-mono text-right pl-6 pr-2 py-1 rounded-lg bg-background border-2 border-border shadow-none focus-visible:ring-0 focus-visible:border-primary"
+                          />
                         </div>
+                      </div>
 
-                        {/* Modificar Costo BS (Ampliado a w-24) */}
-                        <div className="w-29 shrink-0 px-0.5">
-                          <div className="relative flex items-center">
-                            <span className="absolute left-1 text-[8px] text-emerald-600 font-black pointer-events-none">Bs</span>
-                            <Input
-                              type="text"
-                              value={item.costInputBS || ""}
-                              onChange={(e) => updateCostBS(item.id!, e.target.value)}
-                              onBlur={() => handleBlur(item.id!, "BS")}
-                              className="h-6 text-xs font-black font-mono text-right pl-4.5 pr-1 py-0 rounded bg-emerald-50/50 border-2 border-emerald-200 shadow-none focus-visible:ring-0 focus-visible:border-emerald-400 transition-all text-emerald-950"
-                            />
-                          </div>
+                      {/* Costo BS (Totalmente Holgado w-40) */}
+                      <div className="w-40 shrink-0">
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2 text-xs text-emerald-600 font-black pointer-events-none">Bs</span>
+                          <Input
+                            type="text"
+                            value={item.costInputBS || ""}
+                            onChange={(e) => updateCostBS(item.id!, e.target.value)}
+                            onBlur={() => handleBlur(item.id!, "BS")}
+                            className="h-9 text-sm font-black font-mono text-right pl-7 pr-2 py-1 rounded-lg bg-emerald-50/50 border-2 border-emerald-300 text-emerald-950 focus-visible:ring-0 focus-visible:border-emerald-500"
+                          />
                         </div>
+                      </div>
 
-                        {/* Total por item */}
-                        <div className="w-16 text-right shrink-0">
-                          <p className="text-xs font-black text-foreground tracking-tight font-mono whitespace-nowrap">
-                            ${formatLocalNumber(item.internalCostUSD * item.quantity)}
-                          </p>
-                        </div>
+                      {/* Total USD */}
+                      <div className="w-28 text-right shrink-0">
+                        <p className="text-sm font-black text-foreground tracking-tight font-mono">
+                          ${formatLocalNumber(item.internalCostUSD * item.quantity)}
+                        </p>
+                      </div>
 
-                        {/* Botón Borrar */}
-                        <div className="w-6 flex justify-end shrink-0">
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:bg-destructive hover:text-white rounded transition-colors" onClick={() => removeItem(item.id!)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                      {/* Borrar */}
+                      <div className="w-8 flex justify-end shrink-0">
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:bg-destructive hover:text-white rounded-lg transition-colors" onClick={() => removeItem(item.id!)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -602,41 +768,38 @@ export function PurchasesModule() {
             )}
           </div>
 
-          <Separator className="bg-border h-[2px]" />
+          {/* Totales y Liquidación en Drawer */}
+          <div className="p-4 bg-muted/40 border-2 border-border rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-muted-foreground">Inversión Lote</span>
+              <span className="text-sm font-black text-foreground font-mono">${formatLocalNumber(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-2">
+              <div>
+                <span className="text-xs font-black uppercase text-foreground">Total USD</span>
+                <p className="text-2xl font-black text-primary">${formatLocalNumber(subtotal)}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-black uppercase text-muted-foreground">Total Bs (Moneda Local)</span>
+                <p className="text-lg font-black text-primary-foreground bg-primary px-3 py-1 rounded-lg mt-0.5">
+                  Bs {formatLocalNumber(totalBs)}
+                </p>
+              </div>
+            </div>
 
-          {/* Totales estilo Sales Module */}
-          <div className="space-y-0.5 py-0.5">
-            <div className="flex justify-between text-xs text-muted-foreground font-black">
-              <span>INVERSIÓN LOTE</span>
-              <span>${formatLocalNumber(subtotal)}</span>
-            </div>
-            <div className="flex items-end justify-between pt-0.5">
-              <div className="flex flex-col">
-                <span className="text-[0.7rem] font-black text-foreground tracking-tighter leading-none">TOTAL USD</span>
-                <p className="text-xl font-black text-primary leading-none mt-0.5">
-                  ${formatLocalNumber(subtotal)}
-                </p>
-              </div>
-              <div className="text-right flex flex-col items-end">
-                <p className="text-[0.65rem] font-black text-muted-foreground tracking-tighter opacity-80 mb-0.5">MONEDA LOCAL</p>
-                <p className="text-sm font-black text-primary-foreground bg-primary px-2.5 py-0.5 rounded shadow-sm border-0">
-                  <span className="text-[0.65rem] mr-1 opacity-90">BS</span>
-                  {formatLocalNumber(totalBs)}
-                </p>
-              </div>
-            </div>
+            <Button
+              disabled={purchaseItems.length === 0 || !supplierName.trim() || createPurchase.isPending}
+              onClick={() => {
+                setIsBatchDrawerOpen(false);
+                handleOpenPaymentModal();
+              }}
+              className="w-full h-12 font-black text-base uppercase rounded-xl shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 mt-2"
+            >
+              {createPurchase.isPending ? "Validando Transacción..." : "Liquidar Recepción de Ingreso"}
+            </Button>
           </div>
-
-          {/* Botón de Acción Principal */}
-          <Button
-            disabled={purchaseItems.length === 0 || !supplierName.trim() || createPurchase.isPending}
-            onClick={handleOpenPaymentModal}
-            className="w-full h-11 font-black text-sm uppercase rounded-xl shadow-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 mt-1"
-          >
-            {createPurchase.isPending ? "Validando Transacción..." : "Liquidar Recepción de Ingreso"}
-          </Button>
-        </CardContent>
-      </Card>
+        </SheetContent>
+      </Sheet>
 
       {/* Modal de Liquidación / Condición de Pago y Cuentas por Pagar */}
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>

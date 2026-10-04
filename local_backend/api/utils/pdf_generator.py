@@ -125,6 +125,7 @@ def generate_delivery_note_pdf(note_data: dict, items: list, output_path: str, f
     if note_data.get("store_address"): extra_header += 10
     if note_data.get("store_phone"): extra_header += 10
     if note_data.get("client_identifier"): extra_header += 10
+    if note_data.get("client_address"): extra_header += 10
 
     # Dimensiones dinámicas por formato (optimizado para evitar espacio blanco final)
     if format_type == "58mm":
@@ -205,6 +206,9 @@ def generate_delivery_note_pdf(note_data: dict, items: list, output_path: str, f
         y -= 10
         if note_data.get("client_identifier"):
             c.drawString(margin, y, f"CI/RIF: {note_data.get('client_identifier')}")
+            y -= 10
+        if note_data.get("client_address"):
+            c.drawString(margin, y, f"Dir: {note_data.get('client_address')[:30]}")
             y -= 10
         c.drawString(margin, y, f"Fecha: {note_data.get('date', '')}")
         y -= 12
@@ -305,6 +309,9 @@ def generate_delivery_note_pdf(note_data: dict, items: list, output_path: str, f
         y -= 15
         if note_data.get("client_identifier"):
             c.drawString(1 * inch, y, f"CI/RIF: {note_data.get('client_identifier')}")
+            y -= 15
+        if note_data.get("client_address"):
+            c.drawString(1 * inch, y, f"Dirección: {note_data.get('client_address')[:50]}")
             y -= 15
         c.drawString(1 * inch, y, f"Fecha: {note_data.get('date', '')}")
         y -= 20

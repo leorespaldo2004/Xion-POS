@@ -130,3 +130,102 @@ def register_purchase(payload: PurchaseCreateDTO, session: Session = Depends(get
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+class PurchasePayDTO(BaseModel):
+    amount_usd: float
+    notes: Optional[str] = None
+    exchange_rate: Optional[float] = None
+
+@router.get("")
+def get_purchases(session: Session = Depends(get_session)):
+    statement = select(Purchase).order_by(Purchase.created_at.desc())
+    purchases = session.exec(statement).all()
+    result = []
+    for p in purchases:
+        items_count = len(session.exec(select(PurchaseItem).where(PurchaseItem.purchase_id == p.id)).all())
+        p_dict = p.model_dump()
+        p_dict["items_count"] = items_count
+        result.append(p_dict)
+    return result
+
+@router.get("/{purchase_id}")
+def get_purchase_detail(purchase_id: str, session: Session = Depends(get_session)):
+    purchase = session.get(Purchase, purchase_id)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    
+    items = session.exec(select(PurchaseItem).where(PurchaseItem.purchase_id == purchase_id)).all()
+    detailed_items = []
+    for item in items:
+        prod = session.get(Product, item.product_id)
+        i_dict = item.model_dump()
+        i_dict["product_name"] = prod.name if prod else "Producto Desconocido"
+        i_dict["product_sku"] = prod.sku if prod else ""
+        detailed_items.append(i_dict)
+        
+    res = purchase.model_dump()
+    res["items"] = detailed_items
+    return res
+
+@router.post("/{purchase_id}/pay")
+def pay_purchase_credit(purchase_id: str, payload: PurchasePayDTO, session: Session = Depends(get_session)):
+    purchase = session.get(Purchase, purchase_id)
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    
+    if (purchase.pending_amount_usd or 0.0) <= 0.001:
+        raise HTTPException(status_code=400, detail="Esta compra ya se encuentra totalmente pagada.")
+    
+    if payload.amount_usd <= 0:
+        raise HTTPException(status_code=400, detail="El monto del abono debe ser mayor a 0.")
+    
+    pay_amount = min(payload.amount_usd, purchase.pending_amount_usd)
+    ex_rate = payload.exchange_rate or purchase.exchange_rate or 36.5
+    
+    try:
+        new_paid = (purchase.paid_amount_usd or 0.0) + pay_amount
+        new_pending = max(0.0, (purchase.total_amount_usd or 0.0) - new_paid)
+        
+        purchase.paid_amount_usd = new_paid
+        purchase.pending_amount_usd = new_pending
+        
+        if new_pending <= 0.001:
+            purchase.payment_status = "paid"
+        else:
+            purchase.payment_status = "partial"
+            
+        purchase.is_synced = False
+        session.add(purchase)
+        
+        # Registrar movimiento en ledger de cuentas por pagar si aplica proveedor
+        if purchase.supplier_id:
+            from local_backend.core.models import Supplier, SupplierPayablesLedger, PayableTxType
+            supplier = session.get(Supplier, purchase.supplier_id)
+            if supplier:
+                supplier.current_balance_usd = max(0.0, (supplier.current_balance_usd or 0.0) - pay_amount)
+                supplier.is_synced = False
+                session.add(supplier)
+                
+                payable_entry = SupplierPayablesLedger(
+                    id=str(uuid4()),
+                    supplier_id=supplier.id,
+                    purchase_id=purchase.id,
+                    tx_type=PayableTxType.PAYMENT,
+                    amount_usd=pay_amount,
+                    exchange_rate=ex_rate,
+                    reference=payload.notes or f"Abono a compra {purchase.invoice_number or purchase.id[:8]}"
+                )
+                session.add(payable_entry)
+                
+        session.commit()
+        return {
+            "detail": "Abono registrado con éxito",
+            "purchase_id": purchase.id,
+            "paid_amount_usd": purchase.paid_amount_usd,
+            "pending_amount_usd": purchase.pending_amount_usd,
+            "payment_status": purchase.payment_status
+        }
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+

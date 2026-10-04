@@ -13,6 +13,7 @@ import { InventoryModule } from "./inventory-module"
 import { DeliveryNotesModule } from "./delivery-notes-module"
 import { UsersModule } from "./users-module"
 import { PurchasesModule } from "./purchases-module"
+import { PurchaseHistoryModule } from "./purchase-history-module"
 import { ClientsModule } from "./clients-module"
 import { SuppliersModule } from "./suppliers-module"
 import { HelpModule } from "./help-module"
@@ -55,6 +56,8 @@ export function DashboardScreen({ onLogout, currentUser }: DashboardScreenProps)
         return <DeliveryNotesModule />
       case "Compras":
         return <PurchasesModule />
+      case "Historial de Compras":
+        return <PurchaseHistoryModule />
       case "Inventario":
         return <InventoryModule />
       case "Usuarios":

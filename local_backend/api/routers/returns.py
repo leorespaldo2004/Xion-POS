@@ -16,6 +16,8 @@ from local_backend.core.database import get_session
 from local_backend.core.models import (
     Sale,
     SaleItem,
+    DeliveryNote,
+    DeliveryNoteItem,
     SaleReturn,
     SaleReturnItem,
     Product,
@@ -33,13 +35,13 @@ router = APIRouter(prefix="/returns", tags=["Returns"])
 # =============================================================================
 
 class ReturnItemInputDTO(BaseModel):
-    sale_item_id: str = Field(..., description="ID del ítem en la venta original")
+    sale_item_id: str = Field(..., description="ID del ítem en la venta u orden original")
     product_id: str = Field(..., description="ID del producto a devolver")
     quantity: float = Field(..., gt=0, description="Cantidad a devolver (debe ser mayor a 0)")
 
 
 class CreateReturnDTO(BaseModel):
-    sale_id: str = Field(..., description="ID de la venta original")
+    sale_id: str = Field(..., description="ID de la venta u orden original")
     reason: str = Field(..., min_length=3, description="Motivo de la devolución")
     user_id: Optional[str] = Field(None, description="ID del cajero que procesa")
     supervisor_id: Optional[str] = Field(None, description="ID del supervisor que autorizó")
@@ -94,19 +96,29 @@ def get_sale_returnable_items(
     session: Session = Depends(get_session)
 ):
     """
-    Obtiene los ítems de una venta indicando la cantidad devuelta previamente
+    Obtiene los ítems de una venta o nota de entrega indicando la cantidad devuelta previamente
     y la cantidad disponible para devolver.
     """
     sale = session.get(Sale, sale_id)
+    delivery_note = None
     if not sale:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Venta con ID '{sale_id}' no encontrada"
-        )
+        delivery_note = session.get(DeliveryNote, sale_id)
+        if not delivery_note:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Documento con ID '{sale_id}' no encontrado"
+            )
 
-    sale_items = session.exec(
-        select(SaleItem).where(SaleItem.sale_id == sale_id)
-    ).all()
+    if sale:
+        sale_items = session.exec(
+            select(SaleItem).where(SaleItem.sale_id == sale_id)
+        ).all()
+    else:
+        dn_items = session.exec(
+            select(DeliveryNoteItem).where(DeliveryNoteItem.delivery_note_id == sale_id)
+        ).all()
+        # Mapear DeliveryNoteItem a un esquema común compatible
+        sale_items = dn_items
 
     existing_returns = session.exec(
         select(SaleReturn).where(SaleReturn.sale_id == sale_id)
@@ -125,6 +137,7 @@ def get_sale_returnable_items(
     for item in sale_items:
         already_returned = returned_quantities.get(item.id, 0.0)
         remaining = max(0.0, item.quantity - already_returned)
+        tax_amt = getattr(item, 'tax_amount_usd', 0.0)
         response.append(
             ReturnableItemResponse(
                 sale_item_id=item.id,
@@ -134,7 +147,7 @@ def get_sale_returnable_items(
                 already_returned_quantity=already_returned,
                 remaining_quantity=remaining,
                 unit_price_usd=item.unit_price_usd,
-                tax_amount_usd=item.tax_amount_usd,
+                tax_amount_usd=tax_amt,
                 total_price_usd=item.total_price_usd,
             )
         )
@@ -150,28 +163,37 @@ def create_return(
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
 ):
     """
-    Procesa una devolución total o parcial de una venta previamente realizada.
+    Procesa una devolución total o parcial de una venta o nota de entrega.
     En envuelto en una transacción de base de datos atómica.
     """
     operator_id = payload.user_id or x_user_id or "SYSTEM"
 
-    # 1. Obtener la venta original
+    # 1. Obtener la venta u orden original
     sale = session.get(Sale, payload.sale_id)
+    delivery_note = None
     if not sale:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Venta con ID '{payload.sale_id}' no encontrada"
-        )
+        delivery_note = session.get(DeliveryNote, payload.sale_id)
+        if not delivery_note:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Documento con ID '{payload.sale_id}' no encontrado"
+            )
 
-    if sale.status == "refunded":
+    if sale and sale.status == "refunded":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La venta ya ha sido devuelta completamente."
         )
 
+    if delivery_note and delivery_note.status == "ANULADA":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede procesar devolución de una Nota de Entrega anulada."
+        )
+
     # 2. Devoluciones previas para calcular disponibles por ítem
     existing_returns = session.exec(
-        select(SaleReturn).where(SaleReturn.sale_id == sale.id)
+        select(SaleReturn).where(SaleReturn.sale_id == payload.sale_id)
     ).all()
     existing_return_ids = [r.id for r in existing_returns if r.id]
 
@@ -183,10 +205,16 @@ def create_return(
         for ri in existing_return_items:
             returned_quantities[ri.sale_item_id] = returned_quantities.get(ri.sale_item_id, 0.0) + ri.quantity
 
-    # 3. Ítems de la venta original
-    sale_items_db = session.exec(
-        select(SaleItem).where(SaleItem.sale_id == sale.id)
-    ).all()
+    # 3. Ítems del documento original
+    if sale:
+        sale_items_db = session.exec(
+            select(SaleItem).where(SaleItem.sale_id == sale.id)
+        ).all()
+    else:
+        sale_items_db = session.exec(
+            select(DeliveryNoteItem).where(DeliveryNoteItem.delivery_note_id == delivery_note.id)
+        ).all()
+
     sale_items_by_id = {item.id: item for item in sale_items_db}
 
     # 4. Sesión de caja activa
